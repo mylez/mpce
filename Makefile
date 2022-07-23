@@ -1,6 +1,6 @@
 .PHONY=run
 mpce: main.o
-	g++ -g -o $@ $^
+	g++ -Wall -g -o $@ $^
 
 %.o: %.cc
 	g++ -std=c++17 -g -I. -c $<

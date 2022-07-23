@@ -54,16 +54,29 @@ class MMU
         return PHYS_ADDR(page_table_entry, offset);
     }
 
-    /// @param a_virt_bus
-    /// @param d_bus
-    /// @param is_data_pte Indicates that this is a data PTE if true.
-    void store_entry(const Register<uint16_t> &a_virt_bus,
-                     const Register<uint16_t> &d_bus, const bool is_data_pte)
+    /// @returns True if a read only fault has occurred.
+    bool read_only_fault()
     {
-        const uint16_t addr = a_virt_bus.read();
-        const uint16_t entry = d_bus.read();
+        return read_only_fault_;
+    }
 
-        (is_data_pte ? page_table_data_ : page_table_code_).store(addr, entry);
+    /// @returns True if a page fault has occurred.
+    bool page_fault()
+    {
+        return page_fault_;
+    }
+
+    /// @returns True if any fault has occurred.
+    bool fault()
+    {
+        return read_only_fault() || page_fault();
+    }
+
+    /// Reset fault flags to false.
+    void reset_fault()
+    {
+        read_only_fault_ = false;
+        page_fault_ = false;
     }
 };
 

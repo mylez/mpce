@@ -7,8 +7,7 @@
 
 #include <queue>
 
-#define BIND_OPERATION(op) (std::bind(&CPUState::op, this))
-#define OPCODE(inst) (((inst) >> 7) & 0x01ff)
+#define OPCODE(inst) (((inst) >> 9) & 0x007f)
 #define REG_SEL_X(inst) ((inst)&0x0007)
 #define REG_SEL_Y(inst) (((inst) >> 3) & 0x0007)
 #define REG_SEL_Z(inst) (((inst) >> 6) & 0x0007)
@@ -25,21 +24,19 @@ struct CPUState
   private:
     using Operation = std::function<void()>;
 
-    std::queue<Operation> next_ops_;
-
     std::vector<Operation> opcode_mapping_;
 
-    /// @brief Main architectural registers, including program
-    /// counter.
+    /// Main architectural registers, including program counter.
     RegisterFile register_file_;
 
-    /// @brief Memory management unit, maps virtual address to
-    /// physical address in user mode.
+    /// Memory management unit, maps virtual address to physical address in user
+    /// mode.
     MMU mmu_;
 
+    /// Memory-mapped IO.
     MMIO mmio_;
 
-    /// @brief Special registers.
+    /// Special registers.
     Register<uint8_t> status_{"status", 0xf0};
     Register<uint8_t> cause_{"cause"};
     Register<uint16_t> eret_{"eret"};
@@ -52,12 +49,9 @@ struct CPUState
     Register<uint8_t> mode_{"mode", 0xfe};
 
   public:
-    CPUState() : opcode_mapping_{OPCODE_MAP_SIZE, BIND_OPERATION(op_none)}
+    CPUState() : opcode_mapping_{OPCODE_MAP_SIZE, op_alu(0, false)}
     {
         // Todo: define all these.
-        REGISTER_OP(0x00, BIND_OPERATION(op_none));
-
-        REGISTER_OP(0x22, op_alu(0, false));
         REGISTER_OP(0x24, op_alu(1, false));
         REGISTER_OP(0xc4, op_alu(2, false));
         REGISTER_OP(0x26, op_alu(3, false));
@@ -121,19 +115,15 @@ struct CPUState
 
     void cycle()
     {
-        next_ops_.emplace(BIND_OPERATION(op_load));
-        next_ops_.emplace(op_alu(0x00, false));
+        load_inst();
 
-        // Example setting an opcode mapping.
-        // Note: Opcode and register arguments overlap!
-        opcode_mapping_.at(0x0ab) = op_alu(0x00, false);
+        const uint16_t inst_word = inst_.read();
+        const Operation operation = opcode_mapping_[OPCODE(inst_word)];
 
-        for (int cycle = 0; !next_ops_.empty(); cycle++)
-        {
-            printf(" - - - - - - cycle %d - - - - - -\n", cycle);
-            next_ops_.front()();
-            next_ops_.pop();
-        }
+        // Perform the operation.
+        operation();
+
+        // 1. If interrupt, context switch and branch to isr.
     }
 
   private:
@@ -142,7 +132,12 @@ struct CPUState
         return status_.read() & 0x8;
     }
 
-    void op_load()
+    bool is_valid_mode(bool mode)
+    {
+        return !is_user_mode() || is_user_mode() == mode;
+    }
+
+    void load_inst()
     {
         const bool user_mode = is_user_mode();
         const uint16_t pc_addr = register_file_.get(PC).read();
@@ -153,13 +148,13 @@ struct CPUState
         register_file_.get(PC).write(pc_addr + 1);
         exc_addr_.write(pc_addr);
         inst_.write(inst_word);
-
-        const uint16_t opcode = OPCODE(inst_word);
     }
 
     Operation op_alu(uint32_t alu_sel, bool carry_in)
     {
-        return [=]() {
+        return [&, alu_sel, carry_in]() {
+            cout << "performing alu op " << alu_sel << ", carry_in " << carry_in
+                 << endl;
             const uint16_t inst_word = inst_.read();
 
             Register<uint16_t> &reg_x =
@@ -182,6 +177,12 @@ struct CPUState
 
             switch (alu_sel)
             {
+            case 0:
+                // Addition.
+                x = static_cast<uint16_t>(static_cast<int16_t>(y) +
+                                          static_cast<int16_t>(z));
+                update_status = true;
+                break;
             default:
                 // Subtraction.
                 x = static_cast<uint16_t>(static_cast<int16_t>(y) -
@@ -205,8 +206,94 @@ struct CPUState
         };
     }
 
-    void op_none()
+    Operation op_mem_data_load(bool byte, bool mode)
     {
+        return [&, byte, mode]() {
+            cout << "performing mem data load, byte = " << byte << endl;
+
+            if (!is_valid_mode(mode))
+            {
+                // Todo: Generate interrupt.
+                return;
+            }
+
+            const uint16_t inst_word = inst_.read();
+
+            Register<uint16_t> &reg_x =
+                register_file_.get(REG_SEL_X(inst_word));
+
+            const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
+            const uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
+            const uint16_t virt_addr = y + z;
+
+            mmu_.reset_fault();
+
+            const uint32_t phys_addr =
+                is_user_mode()
+                    ? mmu_.resolve(virt_addr, ptb_.read(), true, true, false)
+                    : virt_addr;
+
+            if (mmu_.page_fault())
+            {
+                // Todo: Generate interrupt and return in case of faults.
+            }
+
+            const ByteAddressibleMemory &data = mmio_.get_data(mode);
+            reg_x.write(data.read(phys_addr, byte));
+        };
+    }
+
+    Operation op_mem_data_store(bool byte, bool mode)
+    {
+        return [&, byte, mode]() {
+            cout << "performing mem data store, byte = " << byte << endl;
+
+            if (!is_valid_mode(mode))
+            {
+                // Todo: Generate interrupt.
+                return;
+            }
+
+            const uint16_t inst_word = inst_.read();
+
+            const uint16_t x = register_file_.get(REG_SEL_X(inst_word)).read();
+            const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
+            const uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
+            const uint16_t virt_addr = y + z;
+
+            mmu_.reset_fault();
+
+            const uint32_t phys_addr =
+                is_user_mode()
+                    ? mmu_.resolve(virt_addr, ptb_.read(), true, true, true)
+                    : virt_addr;
+
+            if (mmu_.page_fault())
+            {
+                // Todo: Generate interrupt and return in case of faults.
+            }
+            else if (mmu_.read_only_fault())
+            {
+                // Todo: Generate interrupt and return in case of faults.
+            }
+
+            ByteAddressibleMemory &data = mmio_.get_data(mode);
+
+            if (byte)
+            {
+                data.store_byte(phys_addr, static_cast<uint8_t>(x));
+            }
+            else
+            {
+                data.store_word(phys_addr, x);
+            }
+        };
+    }
+
+    void op_invalid()
+    {
+        cerr << "invalid operation." << endl;
+        // Todo: Generate interrupt.
     }
 };
 } // namespace MPCE

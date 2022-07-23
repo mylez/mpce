@@ -22,13 +22,11 @@ class WordAddressibleMemory
   public:
     /// @param name
     /// @param capacity
-    WordAddressibleMemory(std::string name, uint32_t capacity)
-        : name_(name)
+    WordAddressibleMemory(std::string name, uint32_t capacity) : name_(name)
     {
-        memory_ =
-            std::make_unique<std::vector<uint16_t>>(capacity, 0);
-        cout << "initializing memory " << name << " of size "
-             << capacity << endl;
+        memory_ = std::make_unique<std::vector<uint16_t>>(capacity, 0);
+        cout << "initializing memory " << name << " of size " << capacity
+             << endl;
     }
 
     /// @param phys_addr
@@ -78,8 +76,7 @@ class ByteAddressibleMemory
         return memory_.read(phys_addr / 2);
     }
 
-    inline void set_word(const uint32_t phys_addr,
-                         const uint16_t value)
+    inline void set_word(const uint32_t phys_addr, const uint16_t value)
     {
         memory_.store(phys_addr / 2, value);
     }
@@ -90,6 +87,11 @@ class ByteAddressibleMemory
     ByteAddressibleMemory(std::string name, uint32_t capacity)
         : memory_{name, capacity}
     {
+    }
+
+    uint16_t read(const uint32_t phys_addr, bool byte) const
+    {
+        return byte ? read_byte(phys_addr) : read_word(phys_addr);
     }
 
     /// @param phys_addr
@@ -111,8 +113,7 @@ class ByteAddressibleMemory
         const uint16_t entry = get_word(phys_addr);
         const uint8_t byte_offset = phys_addr % 2;
 
-        return byte_offset ? get_high_byte(entry)
-                           : get_low_byte(entry);
+        return byte_offset ? get_high_byte(entry) : get_low_byte(entry);
     }
 
     /// @param phys_addr
@@ -127,9 +128,8 @@ class ByteAddressibleMemory
     void store_byte(const uint32_t phys_addr, const uint8_t value)
     {
         const uint16_t entry = get_word(phys_addr);
-        const uint16_t word = phys_addr % 2
-                                  ? (entry & 0x00ff) | (value << 8)
-                                  : (entry & 0xff00) | (value & 0xff);
+        const uint16_t word = phys_addr % 2 ? (entry & 0x00ff) | (value << 8)
+                                            : (entry & 0xff00) | (value & 0xff);
 
         set_word(phys_addr, word);
     }
