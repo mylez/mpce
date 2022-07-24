@@ -20,6 +20,8 @@
 #define STATUS_CARRY 0x02
 #define STATUS_OVERFLOW 0x02
 
+#define OPCODE_MAP_SIZE 0x80
+
 namespace MPCE
 {
 
@@ -52,12 +54,8 @@ struct CPUState
     Register<uint16_t> inst_{"inst"};
     Register<uint8_t> mode_{"mode", 0xfe};
 
-    const unsigned int opcode_map_size_;
-
   public:
-    CPUState()
-        : opcode_map_size_{0x80}, opcode_mapping_{opcode_map_size_,
-                                                  BIND_OP(&CPUState::op_none)}
+    CPUState() : opcode_mapping_{OPCODE_MAP_SIZE, BIND_OP(&CPUState::op_none)}
     {
         // Opcodes appear as multiples of 2 because they are the top 7 bits of
         // the top byte of the instruction word. The lowest bit in the byte is
@@ -95,7 +93,7 @@ struct CPUState
         MAP_OPCODE(0xcc, BIND_OP((&CPUState::op_alu<4, true, false>)));
 
         // Arithmetic with immediate:
-        // Todo: Is carry really not needed with immediate?
+        // Todo: is carry really not needed with immediate?
 
         // 32   x <- y ^ z, imm
         MAP_OPCODE(0x32, BIND_OP((&CPUState::op_alu<0, false, true>)));
