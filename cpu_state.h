@@ -385,7 +385,8 @@ struct CPUState
         //   5) Loading page table entries (code and data) into the register
         //   file.
         //   6) The ability to execute code (including protected instructions)
-        //   from a user virtual page while in kern mode.
+        //   from a virtual page while in kern mode (branch and toggle virtual
+        //   memory).
     }
 
     void cycle()
