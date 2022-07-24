@@ -30,8 +30,10 @@ struct CPUState
   private:
     using Operation = std::function<void()>;
 
+    /// Map a 7-bit opcode to one of 128 Operation functions. Initialize entries
+    /// to op_invalid.
     std::vector<Operation> opcode_mapping_{OPCODE_MAP_SIZE,
-                                           BIND_OP(&CPUState::op_none)};
+                                           BIND_OP(&CPUState::op_invalid)};
 
     /// Main architectural registers, including program counter.
     RegisterFile register_file_;
@@ -69,9 +71,11 @@ struct CPUState
         // Todo: integrate BIND_OP with MAP_OPCODE if all opcodes end up
         // needing BIND_OP anyway.
 
+        // 00   noop
+        MAP_OPCODE(0x00, BIND_OP(&CPUState::op_none));
+
         // Arithmetic:
 
-        // 00   noop
         // 22   x <- y ^ z
         MAP_OPCODE(0x22, BIND_OP((&CPUState::op_alu<0, false, false>)));
 
@@ -93,9 +97,6 @@ struct CPUState
         // cc   x <- y + z, carry
         MAP_OPCODE(0xcc, BIND_OP((&CPUState::op_alu<4, true, false>)));
 
-        // Arithmetic with immediate:
-        // Todo: is carry really not needed with immediate?
-
         // 32   x <- y ^ z, imm
         MAP_OPCODE(0x32, BIND_OP((&CPUState::op_alu<0, false, true>)));
 
@@ -109,47 +110,168 @@ struct CPUState
         MAP_OPCODE(0x3a, BIND_OP((&CPUState::op_alu<3, false, true>)));
 
         // 3c   x <- y + z, imm
-        MAP_OPCODE(0x3a, BIND_OP((&CPUState::op_alu<4, false, true>)));
+        MAP_OPCODE(0x3c, BIND_OP((&CPUState::op_alu<4, false, true>)));
 
-        // Memory:
+        // Memory and IO:
 
         // b2   mem_b_kern[y + z] <- x
+        MAP_OPCODE(
+            0xb2,
+            BIND_OP((&CPUState::op_mem<true, false, true, true, false, true>)));
+
         // b4   mem_b_kern[y + z] <- x, imm
+        MAP_OPCODE(
+            0xb4,
+            BIND_OP((&CPUState::op_mem<true, false, true, true, true, true>)));
 
         // b6   x <- mem_bu_kern[y + z]
+        MAP_OPCODE(
+            0xb6,
+            BIND_OP(
+                (&CPUState::op_mem<true, false, true, true, false, false>)));
+
         // b8   x <- mem_bu_kern[y + z], imm
+        MAP_OPCODE(
+            0xb8,
+            BIND_OP((&CPUState::op_mem<true, false, true, true, true, false>)));
+
         // ba   x <- mem_bs_kern[y + z]
+        MAP_OPCODE(
+            0xba,
+            BIND_OP(
+                (&CPUState::op_mem<true, false, true, false, false, true>)));
+
         // bc   x <- mem_bs_kern[y + z], imm
+        MAP_OPCODE(
+            0xbc,
+            BIND_OP((&CPUState::op_mem<true, false, true, false, true, true>)));
 
         // 42   mem_w_kern[y + z] <- x
+        MAP_OPCODE(
+            0x42,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, true, true, false, false>)));
+
         // 44   mem_w_kern[y + z] <- x, imm
+        MAP_OPCODE(
+            0x44,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, true, true, true, false>)));
+
         // 46   x <- mem_w_kern[y + z]
+        MAP_OPCODE(
+            0x46,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, true, false, false, false>)));
+
         // 48   x <- mem_w_kern[y+ z], imm
+        MAP_OPCODE(
+            0x48,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, true, false, true, false>)));
 
         // 4a   mem_t_kern[y + z] <- x
+        MAP_OPCODE(
+            0x4a,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, false, true, false, false>)));
+
         // 4c   mem_t_kern[y + z] <- x, imm
+        MAP_OPCODE(
+            0x4c,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, false, true, true, false>)));
+
         // 4e   x <- mem_t_kern[y + z]
-        // 84   x <- mem_t_kern[y + z], imm
+        MAP_OPCODE(
+            0x4e,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, false, false, false, false>)));
 
-        // ??   mem_b_user[y + z] <- x
-        // ??   mem_b_user[y + z] <- x, imm
+        // 6e   x <- mem_t_kern[y + z], imm
+        MAP_OPCODE(
+            0x6e,
+            BIND_OP(
+                (&CPUState::op_mem<false, false, false, false, true, false>)));
 
-        // ??   x <- mem_bu_user[y + z]
-        // ??   x <- mem_bu_user[y + z], imm
-        // ??   x <- mem_bs_user[y + z]
-        // ??   x <- mem_bs_user[y + z], imm
+        // 72   mem_b_user[y + z] <- x
+        MAP_OPCODE(
+            0x72,
+            BIND_OP((&CPUState::op_mem<true, true, true, true, false, true>)));
 
-        // ??   mem_w_user[y + z] <- x
-        // ??   mem_w_user[y + z] <- x, imm
-        // ??   x <- mem_w_user[y + z]
-        // ??   x <- mem_w_user[y+ z], imm
+        // 74   mem_b_user[y + z] <- x, imm
+        MAP_OPCODE(
+            0x74,
+            BIND_OP((&CPUState::op_mem<true, true, true, true, true, true>)));
 
-        // ??   mem_t_user[y + z] <- x
-        // ??   mem_t_user[y + z] <- x, imm
-        // ??   x <- mem_t_user[y + z]
-        // ??   x <- mem_t_user[y + z], imm
+        // 76   x <- mem_bu_user[y + z]
+        MAP_OPCODE(
+            0x76,
+            BIND_OP((&CPUState::op_mem<true, true, true, true, true, false>)));
 
-        // Special registers
+        // 78   x <- mem_bu_user[y + z], imm
+        MAP_OPCODE(
+            0x78,
+            BIND_OP((&CPUState::op_mem<true, true, true, false, true, false>)));
+
+        // 7a   x <- mem_bs_user[y + z]
+        MAP_OPCODE(
+            0x7a,
+            BIND_OP((&CPUState::op_mem<true, true, true, false, false, true>)));
+
+        // 7c   x <- mem_bs_user[y + z], imm
+        MAP_OPCODE(
+            0x7c,
+            BIND_OP((&CPUState::op_mem<true, true, true, false, true, true>)));
+
+        // 7e   mem_w_user[y + z] <- x
+        MAP_OPCODE(
+            0x7e,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, true, true, false, false>)));
+
+        // 82   mem_w_user[y + z] <- x, imm
+        MAP_OPCODE(
+            0x82,
+            BIND_OP((&CPUState::op_mem<false, true, true, true, true, false>)));
+
+        // 84   x <- mem_w_user[y + z]
+        MAP_OPCODE(
+            0x84,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, true, false, false, false>)));
+
+        // 86   x <- mem_w_user[y + z], imm
+        MAP_OPCODE(
+            0x86,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, true, false, true, false>)));
+
+        // 88   mem_t_user[y + z] <- x
+        MAP_OPCODE(
+            0x88,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, false, true, false, false>)));
+
+        // 8a   mem_t_user[y + z] <- x, imm
+        MAP_OPCODE(
+            0x8a,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, false, true, true, false>)));
+
+        // 8c   x <- mem_t_user[y + z]
+        MAP_OPCODE(
+            0x8c,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, false, false, false, false>)));
+
+        // 8e   x <- mem_t_user[y + z], imm
+        MAP_OPCODE(
+            0x8e,
+            BIND_OP(
+                (&CPUState::op_mem<false, true, false, false, true, false>)));
+
+        // Special registers:
 
         // e0   x <- status
         MAP_OPCODE(0xe0, (op_special_reg_read<true, false, false>(status_)));
@@ -158,20 +280,20 @@ struct CPUState
         MAP_OPCODE(0xe2, (op_special_reg_read<true, false, false>(cause_)));
 
         // e4   x <- exc_addr
-        MAP_OPCODE(0xe2, (op_special_reg_read<true, false, false>(exc_addr_)));
+        MAP_OPCODE(0xe4, (op_special_reg_read<true, false, false>(exc_addr_)));
 
         // e6   x <- eret
-        MAP_OPCODE(0xe2, (op_special_reg_read<true, false, false>(eret_)));
+        MAP_OPCODE(0xe6, (op_special_reg_read<true, false, false>(eret_)));
 
         // e8   x <- eret, mode <- !mode
-        MAP_OPCODE(0xe2, (op_special_reg_read<true, false, true>(eret_)));
+        MAP_OPCODE(0xe8, (op_special_reg_read<true, false, true>(eret_)));
 
         // ea   x <- y + z, mode <- !mode
-        MAP_OPCODE(0xe2, (op_special_reg_read<true, false, true>(eret_)));
+        MAP_OPCODE(0xea, (op_special_reg_read<true, false, true>(eret_)));
 
         // ec   x <- y + z, imm, mode <- !mode
         MAP_OPCODE(
-            0xe2,
+            0xec,
             BIND_OP((&CPUState::op_alu<4, false, true, 0xff, false, true>)));
 
         // f0   mode <- 1
@@ -195,7 +317,7 @@ struct CPUState
         // fc   mmu_d[y + z] <- x
         MAP_OPCODE(0xfc, BIND_OP(&CPUState::op_store_page_table_entry<true>));
 
-        // Conditional addition (branching).
+        // Conditional branching:
 
         // 20   x <- y + z if zero
         MAP_OPCODE(0x20,
@@ -236,6 +358,7 @@ struct CPUState
             0x90,
             BIND_OP((&CPUState::op_alu<4, false, true,
                                        STATUS_NEGATIVE | STATUS_ZERO, true>)));
+
         // a0   x <- y + z if carry
         MAP_OPCODE(0xa0,
                    BIND_OP((&CPUState::op_alu<4, false, false, STATUS_CARRY>)));
@@ -253,17 +376,36 @@ struct CPUState
         MAP_OPCODE(
             0xd0,
             BIND_OP((&CPUState::op_alu<4, false, true, STATUS_OVERFLOW>)));
+
+        // Todo: Adding the following instructions:
+        //   1) Load immediate into any destination register (user and kern).
+        //   2) Atomic test and set (user and kern).
+        //   3) Function call (branch and link).
+        //   4) System call (software trap/interrupt, return value in r7).
+        //   5) Loading page table entries (code and data) into the register
+        //   file.
+        //   6) The ability to execute code (including protected instructions)
+        //   from a user virtual page while in kern mode.
     }
 
     void cycle()
     {
+        static int cycle_num = 0;
+        printf("\ncycle %d:\n", ++cycle_num);
+        printf("mode=%s\n", mode_.read() ? "USER" : "KERN");
+
         load_inst_word(inst_);
 
-        // Todo: check for interrupts after loading instruction word.
+        // Todo: If interrupt occurs, generate exception and preempt.
+
+        // Note: Interrupts are not checked in kernel mode. Kernel mode cannot
+        // handle interrupts recursively. If an interrupt occurs in kernel mode,
+        // the the system will either crash, or enter an undefined state, or the
+        // interrupt may simply be ignored (as with read-only faults in kernel
+        // mode).
 
         const uint16_t inst_word = inst_.read();
         const Operation operation = opcode_mapping_[OPCODE(inst_word)];
-        cout << "opcode is " << (int)inst_word << endl;
 
         // Perform the operation.
         operation();
@@ -273,27 +415,29 @@ struct CPUState
     }
 
   private:
+    /// @param reg_x
     void load_inst_word(Register<uint16_t> &reg_x)
     {
-        const bool user_mode = is_user_mode();
+        const bool mode = is_user_mode();
         const uint16_t pc_addr = register_file_.get(PC).read();
         const uint32_t a_phys_bus =
-            mmu_.resolve(pc_addr, ptb_.read(), false, user_mode, false);
+            mode ? mmu_.resolve(pc_addr, ptb_.read(), false, mode, false)
+                 : pc_addr;
 
         // Todo: Generate interrupt signal and return here for page faults.
 
         // Todo: Clean up ALL of the printf/cout logging, perhaps using glog.
-        cout << "incrementing pc then loading from "
-             << (user_mode ? "user" : "kern") << " code to " << reg_x.name()
-             << endl;
+        cout << "incrementing pc then loading from " << (mode ? "user" : "kern")
+             << " code to " << reg_x.name() << endl;
 
-        const uint16_t word = mmio_.get_code(user_mode).load(a_phys_bus);
+        const uint16_t word = mmio_.get_code(mode).load(a_phys_bus);
 
         register_file_.get(PC).write(pc_addr + 1);
         exc_addr_.write(pc_addr);
         reg_x.write(word);
     }
 
+    /// @tparam is_data
     template <bool is_data> void op_store_page_table_entry()
     {
         if (is_user_mode())
@@ -313,6 +457,12 @@ struct CPUState
         mmu_.page_table(is_data).store(phys_addr, x);
     }
 
+    /// @tparam protected_inst
+    /// @tparam load_imm
+    /// @tparam toggle_mode
+    /// @tparam reg_type_t
+    /// @param special_reg
+    /// @returns An Operation object that can be called like a function.
     template <bool protected_inst, bool load_imm, bool toggle_mode,
               typename reg_type_t>
     Operation op_special_reg_read(const Register<reg_type_t> &special_reg)
@@ -344,6 +494,9 @@ struct CPUState
         };
     }
 
+    /// @tparam load_imm
+    /// @tparam reg_type_t
+    /// @param special_reg
     template <bool load_imm, typename reg_type_t>
     Operation op_special_reg_write(Register<reg_type_t> &special_reg)
     {
@@ -371,34 +524,13 @@ struct CPUState
         };
     }
 
-    template <typename reg_size_t, Register<reg_size_t> *special_reg,
-              bool protected_inst, bool load_imm>
-    void op_special_reg_write()
-    {
-        if (load_imm)
-        {
-            load_inst_word(register_file_.get(IMM));
-        }
-
-        // Todo: If fault, generate interrupts and return here.
-
-        if (protected_inst && is_user_mode())
-        {
-            // Generate illegal instruction interrupt and return.
-        }
-
-        const uint16_t inst_word = inst_.read();
-        const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
-        const uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
-
-        special_reg->write(y + z);
-    }
-
+    /// @brief Enable user mode by setting the mode register to 1.
     void op_set_mode()
     {
         if (is_user_mode())
         {
-            // Generate illegal instruction interrupt and return.
+            // Todo: Generate illegal instruction interrupt and return.
+            return;
         }
 
         mode_.write(1);
@@ -425,10 +557,10 @@ struct CPUState
             return;
         }
 
-        // Load
         if (load_imm)
         {
             load_inst_word(register_file_.get(IMM));
+            // Todo: If fault, generate interrupt signal and return here.
         }
 
         // Do not proceed with this operation if condition is not satisfied.
@@ -438,17 +570,14 @@ struct CPUState
             return;
         }
 
-        // Todo: generate fault/illegal inst interrupt and return here.
-
         const uint16_t inst_word = inst_.read();
 
+        const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
+        const uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
+
         Register<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
-        Register<uint16_t> &reg_y = register_file_.get(REG_SEL_Y(inst_word));
-        Register<uint16_t> &reg_z = register_file_.get(REG_SEL_Z(inst_word));
 
         uint16_t x = 0;
-        uint16_t y = reg_y.read();
-        uint16_t z = reg_z.read();
 
         bool update_status = false;
         bool update_status_unsigned = false;
@@ -457,9 +586,9 @@ struct CPUState
         bool zero = false;
         bool negative = false;
 
+        // Todo: Add all ALU operations and status checks.
         switch (alu_sel)
         {
-
         case 0:
             // Addition.
             x = static_cast<uint16_t>(static_cast<int16_t>(y) +
@@ -475,7 +604,8 @@ struct CPUState
             break;
         }
 
-        reg_z.write(z);
+        // Set the destination register here.
+        reg_x.write(x);
 
         if (update_status)
         {
@@ -499,7 +629,9 @@ struct CPUState
     /// @tparam is_data
     /// @tparam store
     /// @tparam load_imm
-    template <bool byte, bool mode, bool is_data, bool store, bool load_imm>
+    /// @tparam sign_extend_byte
+    template <bool byte, bool mode, bool is_data, bool store, bool load_imm,
+              bool sign_extend_byte>
     void op_mem()
     {
         cout << "performing mem data load, byte = " << byte << endl;
@@ -552,11 +684,12 @@ struct CPUState
     void op_invalid()
     {
         cerr << "invalid operation." << endl;
-        // Todo: Generate interrupt.
+        // Todo: Generate illegal instruction interrupt.
     }
 
     void op_none()
     {
+        cout << " * * * * op_none * * * *\n";
     }
 
     bool is_user_mode() const
