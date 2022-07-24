@@ -68,9 +68,6 @@ struct CPUState
         // wrap the macro argument in extra parentheses if it is a function
         // templatized on multiple template parameters.
 
-        // Todo: integrate BIND_OP with MAP_OPCODE if all opcodes end up
-        // needing BIND_OP anyway.
-
         // 00   noop
         MAP_OPCODE(0x00, BIND_OP(&CPUState::op_none));
 
