@@ -15,8 +15,6 @@
     printf("mapping opcode %s: %s\n", #opcode, #op);                           \
     opcode_mapping_.at((opcode) >> 1) = (op)
 
-#define OPCODE_MAP_SIZE 0x80
-
 #define STATUS_NEGATIVE 0x08
 #define STATUS_ZERO 0x04
 #define STATUS_CARRY 0x02
@@ -54,8 +52,12 @@ struct CPUState
     Register<uint16_t> inst_{"inst"};
     Register<uint8_t> mode_{"mode", 0xfe};
 
+    const unsigned int opcode_map_size_;
+
   public:
-    CPUState() : opcode_mapping_{OPCODE_MAP_SIZE, BIND_OP(&CPUState::op_none)}
+    CPUState()
+        : opcode_map_size_{0x80}, opcode_mapping_{opcode_map_size_,
+                                                  BIND_OP(&CPUState::op_none)}
     {
         // Opcodes appear as multiples of 2 because they are the top 7 bits of
         // the top byte of the instruction word. The lowest bit in the byte is
@@ -258,7 +260,7 @@ struct CPUState
     {
         load_inst_word(inst_);
 
-        // Todo: check for interrupts after reading instruction word.
+        // Todo: check for interrupts after loading instruction word.
 
         const uint16_t inst_word = inst_.read();
         const Operation operation = opcode_mapping_[OPCODE(inst_word)];
@@ -267,7 +269,8 @@ struct CPUState
         // Perform the operation.
         operation();
 
-        // 1. If interrupt, context switch and branch to isr.
+        // Todo: check for interrupts after attempting to complete the
+        // operation.
     }
 
   private:
@@ -278,7 +281,7 @@ struct CPUState
         const uint32_t a_phys_bus =
             mmu_.resolve(pc_addr, ptb_.read(), false, user_mode, false);
 
-        // Todo: Generate interrupt and return here for page faults.
+        // Todo: Generate interrupt signal and return here for page faults.
 
         // Todo: Clean up ALL of the printf/cout logging, perhaps using glog.
         cout << "incrementing pc then loading from "
@@ -296,7 +299,7 @@ struct CPUState
     {
         if (is_user_mode())
         {
-            // Todo: Generate interrupts and return here.
+            // Todo: Generate interrupt signal and return here.
             return;
         }
 
@@ -321,11 +324,11 @@ struct CPUState
                 load_inst_word(register_file_.get(IMM));
             }
 
-            // Todo: If fault, generate interrupts and return here.
+            // Todo: If fault, generate interrupt signal and return here.
 
             if (protected_inst && is_user_mode())
             {
-                // Generate illegal instruction interrupt and return.
+                // Generate illegal instruction interrupt signal and return.
             }
 
             const uint16_t inst_word = inst_.read();
@@ -348,7 +351,7 @@ struct CPUState
         return [&]() {
             if (is_user_mode())
             {
-                // Todo: generate interrupt here and return.
+                // Todo: generate interrupt signal here and return.
                 return;
             }
 
@@ -357,7 +360,7 @@ struct CPUState
                 load_inst_word(register_file_.get(IMM));
             }
 
-            // Todo: Check mmu faults, generate interrupt and return if needed.
+            // Todo: Check mmu faults, generate interrupts and return if needed.
 
             const uint16_t inst_word = inst_.read();
             const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
