@@ -30,7 +30,8 @@ struct CPUState
   private:
     using Operation = std::function<void()>;
 
-    std::vector<Operation> opcode_mapping_;
+    std::vector<Operation> opcode_mapping_{OPCODE_MAP_SIZE,
+                                           BIND_OP(&CPUState::op_none)};
 
     /// Main architectural registers, including program counter.
     RegisterFile register_file_;
@@ -55,7 +56,7 @@ struct CPUState
     Register<uint8_t> mode_{"mode", 0xfe};
 
   public:
-    CPUState() : opcode_mapping_{OPCODE_MAP_SIZE, BIND_OP(&CPUState::op_none)}
+    CPUState()
     {
         // Opcodes appear as multiples of 2 because they are the top 7 bits of
         // the top byte of the instruction word. The lowest bit in the byte is
