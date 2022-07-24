@@ -43,7 +43,7 @@ class MMU
         const uint32_t pte_lookup_index =
             PTE_LOOKUP_INDEX(ptb, page_number, io_data);
 
-        const uint16_t page_table_entry = page_table.read(pte_lookup_index);
+        const uint16_t page_table_entry = page_table.load(pte_lookup_index);
 
         if (perform_fault_check)
         {
@@ -52,6 +52,18 @@ class MMU
         }
 
         return PHYS_ADDR(page_table_entry, offset);
+    }
+
+    WordAddressibleMemory &page_table(bool is_data)
+    {
+        if (is_data)
+        {
+            return page_table_data_;
+        }
+        else
+        {
+            return page_table_code_;
+        }
     }
 
     /// @returns True if a read only fault has occurred.

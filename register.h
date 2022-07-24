@@ -43,8 +43,7 @@ template <typename DataType> class Register
 
     DataType read() const
     {
-        printf("reading 0x%x from register %s\n", data_,
-               name_.c_str());
+        printf("reading 0x%x from register %s\n", data_, name_.c_str());
         return data_;
     }
 
@@ -52,6 +51,11 @@ template <typename DataType> class Register
     {
         printf("writing 0x%x to register %s\n", data, name_.c_str());
         data_ = data & ~mask_;
+    }
+
+    std::string name() const
+    {
+        return name_;
     }
 };
 

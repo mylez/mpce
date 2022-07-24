@@ -1,4 +1,3 @@
-#include "control.h"
 #include "cpu_state.h"
 
 #include <cstdio>

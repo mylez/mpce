@@ -15,12 +15,12 @@ class MMIO
     ByteAddressibleMemory user_data_{"user_data", 0x80'0000};
 
   public:
-    WordAddressibleMemory &get_code(bool is_user_mode)
+    Memory &get_code(bool is_user_mode)
     {
         return is_user_mode ? user_code_ : kern_code_;
     }
 
-    ByteAddressibleMemory &get_data(bool is_user_mode)
+    Memory &get_data(bool is_user_mode)
     {
         return is_user_mode ? user_data_ : kern_data_;
     }

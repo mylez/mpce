@@ -11,8 +11,22 @@ using namespace std;
 namespace MPCE
 {
 
+class Memory
+{
+  public:
+    /// @brief
+    virtual uint16_t load(uint32_t phys_addr, bool byte = false) const = 0;
+
+    /// @brief
+    virtual void store(uint32_t phys_addr, uint16_t value,
+                       bool byte = false) = 0;
+
+    /// @brief
+    virtual uint32_t capacity() const = 0;
+};
+
 /// @brief
-class WordAddressibleMemory
+class WordAddressibleMemory : public Memory
 {
   private:
     std::unique_ptr<std::vector<uint16_t>> memory_;
@@ -30,56 +44,37 @@ class WordAddressibleMemory
     }
 
     /// @param phys_addr
-    uint16_t read(uint32_t phys_addr) const
+    uint16_t load(uint32_t phys_addr, bool byte = false) const override
     {
-        printf("reading address 0x%x from memory %s\n", phys_addr,
-               name_.c_str());
+        printf("mem %s: loading %s from addr 0x%x\n", name_.c_str(),
+               byte ? "byte" : "word", phys_addr);
         return memory_->at(phys_addr);
     }
 
     /// @param phys_addr
     /// @param value
-    void store(uint32_t phys_addr, uint16_t value)
+    void store(uint32_t phys_addr, uint16_t value, bool byte = false) override
     {
+        printf("mem %s: storing %s 0x%x to addr 0x%x\n", name_.c_str(),
+               byte ? "byte" : "word", value, phys_addr);
         memory_->at(phys_addr) = value;
     }
 
     /// @returns The number of words that this memory holds.
-    uint32_t capacity() const
+    uint32_t capacity() const override
     {
         return memory_->capacity();
     }
 };
 
 /// @brief
-class ByteAddressibleMemory
+class ByteAddressibleMemory : public Memory
 {
   private:
+    /// Todo: The state in memory_ should be inherited from Memory by both
+    /// WordAddressibleMemory and ByteAddressibleMemory.
     /// @brief Word addressible base memory.
     WordAddressibleMemory memory_;
-
-    /// @param entry
-    static inline uint8_t get_high_byte(const uint16_t entry)
-    {
-        return (entry & 0xff00) >> 8;
-    }
-
-    /// @param entry
-    static inline uint8_t get_low_byte(const uint16_t entry)
-    {
-        return entry & 0xff;
-    }
-
-    /// @param entry
-    inline uint16_t get_word(const uint32_t phys_addr) const
-    {
-        return memory_.read(phys_addr / 2);
-    }
-
-    inline void set_word(const uint32_t phys_addr, const uint16_t value)
-    {
-        memory_.store(phys_addr / 2, value);
-    }
 
   public:
     /// @param name
@@ -89,13 +84,32 @@ class ByteAddressibleMemory
     {
     }
 
-    uint16_t read(const uint32_t phys_addr, bool byte) const
+    uint16_t load(const uint32_t phys_addr, bool byte) const override
     {
-        return byte ? read_byte(phys_addr) : read_word(phys_addr);
+        return byte ? load_byte(phys_addr) : load_word(phys_addr);
     }
 
+    void store(const uint32_t phys_addr, uint16_t value, bool byte) override
+    {
+        if (byte)
+        {
+            store_byte(phys_addr, value);
+        }
+        else
+        {
+            store_word(phys_addr, value);
+        }
+    }
+
+    /// @returns Memory capacity in words.
+    uint32_t capacity() const override
+    {
+        return memory_.capacity();
+    }
+
+  private:
     /// @param phys_addr
-    uint16_t read_word(const uint32_t phys_addr) const
+    uint16_t load_word(const uint32_t phys_addr) const
     {
         if (phys_addr >= capacity())
         {
@@ -107,13 +121,12 @@ class ByteAddressibleMemory
     }
 
     /// @param phys_addr
-    uint8_t read_byte(const uint32_t phys_addr) const
+    uint8_t load_byte(const uint32_t phys_addr) const
     {
-        // read_word checks bounds.
         const uint16_t entry = get_word(phys_addr);
         const uint8_t byte_offset = phys_addr % 2;
 
-        return byte_offset ? get_high_byte(entry) : get_low_byte(entry);
+        return byte_offset ? high_byte(entry) : low_byte(entry);
     }
 
     /// @param phys_addr
@@ -134,10 +147,27 @@ class ByteAddressibleMemory
         set_word(phys_addr, word);
     }
 
-    /// @returns Memory capacity in words.
-    uint32_t capacity() const
+    /// @param entry
+    static inline uint8_t high_byte(const uint16_t entry)
     {
-        return memory_.capacity();
+        return (entry & 0xff00) >> 8;
+    }
+
+    /// @param entry
+    static inline uint8_t low_byte(const uint16_t entry)
+    {
+        return entry & 0xff;
+    }
+
+    /// @param entry
+    uint16_t get_word(const uint32_t phys_addr) const
+    {
+        return memory_.load(phys_addr >> 1);
+    }
+
+    void set_word(const uint32_t phys_addr, const uint16_t value)
+    {
+        memory_.store(phys_addr >> 1, value);
     }
 };
 
