@@ -5,6 +5,7 @@
 #include <string>
 
 using namespace std;
+
 namespace MPCE
 {
 
@@ -14,7 +15,7 @@ enum RegisterIndex
     R1 = 1,
     R2 = 2,
     R3 = 3,
-    FP = 4,
+    R4 = 4,
     SP = 5,
     PC = 6,
     IMM = 7

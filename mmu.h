@@ -1,7 +1,6 @@
 #pragma once
 
 #include "memory.h"
-#include "register.h"
 
 #define VIRT_PAGE_NUM(a) (static_cast<uint32_t>(((a)&0xfe00) >> 9))
 #define VIRT_PAGE_OFFSET(a) (static_cast<uint32_t>((a)&0x01ff))
