@@ -14,18 +14,14 @@ namespace MPCE
 class Memory
 {
   public:
-    /// @brief
     virtual uint16_t load(uint32_t phys_addr, bool byte = false) const = 0;
 
-    /// @brief
     virtual void store(uint32_t phys_addr, uint16_t value,
                        bool byte = false) = 0;
 
-    /// @brief
     virtual uint32_t capacity() const = 0;
 };
 
-/// @brief
 class WordAddressibleMemory : public Memory
 {
   private:
@@ -67,13 +63,13 @@ class WordAddressibleMemory : public Memory
     }
 };
 
-/// @brief
 class ByteAddressibleMemory : public Memory
 {
   private:
     /// Todo: The state in memory_ should be inherited from Memory by both
     /// WordAddressibleMemory and ByteAddressibleMemory.
-    /// @brief Word addressible base memory.
+
+    /// Word addressible base memory.
     WordAddressibleMemory memory_;
 
   public:

@@ -522,7 +522,7 @@ struct CPUState
         };
     }
 
-    /// @brief Enable user mode by setting the mode register to 1.
+    /// Enable user mode by setting the mode register to 1.
     void op_set_mode()
     {
         if (is_user_mode())

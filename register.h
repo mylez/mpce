@@ -26,13 +26,13 @@ const unsigned int REGISTER_FILE_SIZE = 8;
 template <typename DataType> class Register
 {
   private:
-    /// @brief The data stored in this register.
+    /// The data stored in this register.
     DataType data_;
 
-    /// @brief High bits in mask are disabled in the register.
+    /// High bits in mask are disabled in the register.
     DataType mask_;
 
-    /// @brief Name of register.
+    /// Name of register.
     const std::string name_;
 
   public:
