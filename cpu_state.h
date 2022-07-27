@@ -1,9 +1,12 @@
 #pragma once
+
+#include "interrupt.h"
 #include "memory.h"
 #include "mmio.h"
 #include "mmu.h"
 #include "register.h"
 
+#include <cstdint>
 #include <functional>
 
 #define OPCODE(inst) (((inst) >> 9) & 0x007f)
@@ -56,6 +59,8 @@ struct CPUState
     Register<uint16_t> exc_addr_{"exc_addr"};
     Register<uint16_t> inst_{"inst"};
     Register<uint8_t> mode_{"mode", 0xfe};
+
+    Interrupt interrupt_;
 
   public:
     CPUState()
@@ -396,20 +401,48 @@ struct CPUState
 
         // Todo: If interrupt occurs, generate exception and preempt.
 
+        Register<uint16_t> &pc = register_file_.get(PC);
+
+        const bool cycle_began_as_user = is_user_mode();
+
         // Note: Interrupts are not checked in kernel mode. Kernel mode cannot
         // handle interrupts recursively. If an interrupt occurs in kernel mode,
         // the the system will either crash, or enter an undefined state, or the
         // interrupt may simply be ignored (as with read-only faults in kernel
         // mode).
 
+        // Clear previous interrupt signal state. Todo: allow for external
+        // interrupt requests via IRQN, which are not be cleared internally.
+        interrupt_.clear();
+
+        // Save a potential exception return address.
+
+        if (cycle_began_as_user)
+        {
+            eret_.write(pc.read());
+        }
+
         const uint16_t inst_word = inst_.read();
-        const Operation operation = opcode_mapping_[OPCODE(inst_word)];
+        const Operation inst_op = opcode_mapping_[OPCODE(inst_word)];
 
         // Perform the operation.
-        operation();
+        inst_op();
 
-        // Todo: check for interrupts after attempting to complete the
-        // operation.
+        if (!cycle_began_as_user && interrupt_.is_signalled())
+        {
+            cause_.write(interrupt_.cause());
+
+            // Save a general purpose register in the context special register,
+            // so that the general purpose register is free to hold an address
+            // value. This is needed for storing the rest of the cpu context
+            // during an isr.
+            context_.write(register_file_.get(IMM).read());
+
+            // Branch to the interrupt service routine (isr) and switch to
+            // kernel mode.
+            pc.write(isr_.read());
+            mode_.write(0);
+        }
     }
 
   private:

@@ -3,3 +3,4 @@
 *.o
 mpce
 cpu
+test.py
