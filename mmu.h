@@ -31,17 +31,13 @@ class MMU
                      const bool use_data_page_table, const bool is_write,
                      Interrupt &interrupt)
     {
-        /// Todo: figure out what this was for.
-        const bool io_data = false;
-
-        /// Todo: resolve by PTE.
         const WordAddressibleMemory &page_table =
             use_data_page_table ? page_table_data_ : page_table_code_;
 
         const uint32_t offset = VIRT_PAGE_OFFSET(virt_addr);
         const uint32_t page_number = VIRT_PAGE_NUM(virt_addr);
         const uint32_t pte_lookup_index =
-            PTE_LOOKUP_INDEX(ptb, page_number, io_data);
+            PTE_LOOKUP_INDEX(ptb, page_number, false);
 
         const uint16_t page_table_entry = page_table.load(pte_lookup_index);
 

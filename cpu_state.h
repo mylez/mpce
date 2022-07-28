@@ -572,9 +572,12 @@ struct CPUState
             if (load_imm)
             {
                 load_inst_word(register_file_.get(IMM));
-            }
 
-            // Todo: Check mmu faults, generate interrupts and return if needed.
+                if (interrupt_.is_signalled({PG_FAULT}))
+                {
+                    return;
+                }
+            }
 
             const uint16_t inst_word = inst_.read();
             const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
