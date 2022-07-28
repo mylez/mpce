@@ -2,25 +2,25 @@
 
 #include <cstdint>
 #include <unordered_set>
+#include <vector>
 
 namespace MPCE
 {
+enum InterruptSignal
+{
+    IRQ0,
+    IRQ1,
+    IRQ2,
+    IRQ3,
+    TIME_OUT,
+    RO_FAULT,
+    PG_FAULT,
+    ILL_INST
+};
 
 class Interrupt
 {
   public:
-    enum Signal
-    {
-        IRQ0,
-        IRQ1,
-        IRQ2,
-        IRQ3,
-        TIME_OUT,
-        RO_FAULT,
-        PG_FAULT,
-        ILL_INST
-    };
-
     uint8_t cause() const
     {
         uint8_t status_byte = 0;
@@ -35,14 +35,22 @@ class Interrupt
         return status_byte;
     }
 
-    void signal(const Signal signal)
+    void signal(const InterruptSignal signal)
     {
         pending_interrupts_.insert(signal);
     }
 
-    bool is_signalled() const
+    bool is_signalled(const std::vector<InterruptSignal> signals) const
     {
-        return pending_interrupts_.size();
+        for (const InterruptSignal signal : signals)
+        {
+            if (pending_interrupts_.count(signal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void clear()
@@ -52,7 +60,7 @@ class Interrupt
 
   private:
     void set_bit_if_signalled(uint8_t &byte, const uint8_t bit,
-                              const Signal signal) const
+                              const InterruptSignal signal) const
     {
         if (pending_interrupts_.count(signal))
         {
@@ -65,7 +73,8 @@ class Interrupt
         uint8_t priority = 0;
         uint8_t i = 1;
 
-        for (const Signal signal : {TIME_OUT, RO_FAULT, PG_FAULT, ILL_INST})
+        for (const InterruptSignal signal :
+             {TIME_OUT, RO_FAULT, PG_FAULT, ILL_INST})
         {
             if (pending_interrupts_.count(signal))
             {
@@ -78,7 +87,7 @@ class Interrupt
         byte |= priority << 4;
     }
 
-    std::unordered_set<Signal> pending_interrupts_;
+    std::unordered_set<InterruptSignal> pending_interrupts_;
 };
 
 } // namespace MPCE

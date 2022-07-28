@@ -1,5 +1,6 @@
 #pragma once
 
+#include "interrupt.h"
 #include "memory.h"
 
 #define VIRT_PAGE_NUM(a) (static_cast<uint32_t>(((a)&0xfe00) >> 9))
@@ -27,8 +28,8 @@ class MMU
 
   public:
     uint32_t resolve(const uint16_t virt_addr, uint8_t ptb,
-                     const bool use_data_page_table,
-                     const bool perform_fault_check, const bool is_write)
+                     const bool use_data_page_table, const bool is_write,
+                     Interrupt &interrupt)
     {
         /// Todo: figure out what this was for.
         const bool io_data = false;
@@ -44,10 +45,14 @@ class MMU
 
         const uint16_t page_table_entry = page_table.load(pte_lookup_index);
 
-        if (perform_fault_check)
+        if (IS_PTE_UNMAPPED(page_table_entry))
         {
-            page_fault_ = IS_PTE_UNMAPPED(page_table_entry);
-            read_only_fault_ = IS_PTE_READ_ONLY(page_table_entry) && is_write;
+            interrupt.signal(PG_FAULT);
+        }
+
+        if (IS_PTE_READ_ONLY(page_table_entry) && is_write)
+        {
+            interrupt.signal(RO_FAULT);
         }
 
         return PHYS_ADDR(page_table_entry, offset);
