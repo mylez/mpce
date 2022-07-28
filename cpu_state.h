@@ -397,13 +397,20 @@ struct CPUState
         printf("\ncycle %d:\n", ++cycle_num);
         printf("mode=%s\n", mode_.read() ? "USER" : "KERN");
 
+        const bool cycle_began_as_user = is_user_mode();
+
+        if (cycle_began_as_user)
+        {
+            context_switch_to_isr_if({TIME_OUT, IRQ0, IRQ1, IRQ2, IRQ3});
+        }
+
         load_inst_word(inst_);
 
-        // Todo: If interrupt occurs, generate exception and preempt.
-
-        Register<uint16_t> &pc = register_file_.get(PC);
-
-        const bool cycle_began_as_user = is_user_mode();
+        if (cycle_began_as_user)
+        {
+            context_switch_to_isr_if({PG_FAULT});
+            return;
+        }
 
         // Note: Interrupts are not checked in kernel mode. Kernel mode cannot
         // handle interrupts recursively. If an interrupt occurs in kernel mode,
@@ -415,11 +422,10 @@ struct CPUState
         // interrupt requests via IRQN, which are not be cleared internally.
         interrupt_.clear();
 
-        // Save a potential exception return address.
-
+        // Save a potential exception return address in user mode.
         if (cycle_began_as_user)
         {
-            eret_.write(pc.read());
+            eret_.write(register_file_.get(PC).read());
         }
 
         const uint16_t inst_word = inst_.read();
@@ -428,43 +434,65 @@ struct CPUState
         // Perform the operation.
         inst_op();
 
-        if (!cycle_began_as_user && interrupt_.is_signalled())
+        if (cycle_began_as_user)
         {
-            cause_.write(interrupt_.cause());
-
-            // Save a general purpose register in the context special register,
-            // so that the general purpose register is free to hold an address
-            // value. This is needed for storing the rest of the cpu context
-            // during an isr.
-            context_.write(register_file_.get(IMM).read());
-
-            // Branch to the interrupt service routine (isr) and switch to
-            // kernel mode.
-            pc.write(isr_.read());
-            mode_.write(0);
+            context_switch_to_isr_if({PG_FAULT, RO_FAULT, ILL_INST});
+            return;
         }
     }
 
   private:
+    void context_switch_to_isr_if(const std::vector<InterruptSignal> signals)
+    {
+        if (!interrupt_.is_signalled(signals))
+        {
+            return;
+        }
+
+        cause_.write(interrupt_.cause());
+
+        // Save a general purpose register in the context special register,
+        // so that the general purpose register is free to hold an address
+        // value. This is needed for storing the rest of the cpu context
+        // during an isr.
+        context_.write(register_file_.get(IMM).read());
+
+        // Branch to the interrupt service routine (isr) and switch to
+        // kernel mode.
+        register_file_.get(PC).write(isr_.read());
+        mode_.write(0);
+    }
+
     /// @param reg_x
     void load_inst_word(Register<uint16_t> &reg_x)
     {
-        const bool mode = is_user_mode();
+        const bool user_mode = is_user_mode();
         const uint16_t pc_addr = register_file_.get(PC).read();
         const uint32_t a_phys_bus =
-            mode ? mmu_.resolve(pc_addr, ptb_.read(), false, mode, false)
-                 : pc_addr;
+            user_mode
+                ? mmu_.resolve(pc_addr, ptb_.read(), false, false, interrupt_)
+                : pc_addr;
 
-        // Todo: Generate interrupt signal and return here for page faults.
+        if (interrupt_.is_signalled({PG_FAULT}))
+        {
+            return;
+        }
 
-        // Todo: Clean up ALL of the printf/cout logging, perhaps using glog.
-        cout << "incrementing pc then loading from " << (mode ? "user" : "kern")
-             << " code to " << reg_x.name() << endl;
+        // Todo: Clean up ALL of the printf/cout logging, perhaps using
+        // glog.
+        cout << "incrementing pc then loading from "
+             << (user_mode ? "user" : "kern") << " code to " << reg_x.name()
+             << endl;
 
-        const uint16_t word = mmio_.get_code(mode).load(a_phys_bus);
+        const uint16_t word = mmio_.get_code(user_mode).load(a_phys_bus);
 
         register_file_.get(PC).write(pc_addr + 1);
-        exc_addr_.write(pc_addr);
+
+        if (user_mode)
+        {
+            exc_addr_.write(pc_addr);
+        }
+
         reg_x.write(word);
     }
 
@@ -473,7 +501,7 @@ struct CPUState
     {
         if (is_user_mode())
         {
-            // Todo: Generate interrupt signal and return here.
+            interrupt_.signal(ILL_INST);
             return;
         }
 
@@ -504,11 +532,14 @@ struct CPUState
                 load_inst_word(register_file_.get(IMM));
             }
 
-            // Todo: If fault, generate interrupt signal and return here.
-
-            if (protected_inst && is_user_mode())
+            if (interrupt_.is_signalled({PG_FAULT}))
             {
-                // Generate illegal instruction interrupt signal and return.
+                return;
+            }
+            else if (protected_inst && is_user_mode())
+            {
+                interrupt_.signal(ILL_INST);
+                return;
             }
 
             const uint16_t inst_word = inst_.read();
@@ -534,7 +565,7 @@ struct CPUState
         return [&]() {
             if (is_user_mode())
             {
-                // Todo: generate interrupt signal here and return.
+                interrupt_.signal(ILL_INST);
                 return;
             }
 
@@ -560,7 +591,7 @@ struct CPUState
     {
         if (is_user_mode())
         {
-            // Todo: Generate illegal instruction interrupt and return.
+            interrupt_.signal(ILL_INST);
             return;
         }
 
@@ -582,16 +613,22 @@ struct CPUState
         cout << "performing alu op " << alu_sel << ", carry_in " << carry_in
              << endl;
 
-        if (is_user_mode() && toggle_mode)
+        const bool user_mode = is_user_mode();
+
+        if (user_mode && toggle_mode)
         {
-            // Todo: generate illegal inst interrupt and return here.
+            interrupt_.signal(ILL_INST);
             return;
         }
 
         if (load_imm)
         {
             load_inst_word(register_file_.get(IMM));
-            // Todo: If fault, generate interrupt signal and return here.
+
+            if (user_mode && interrupt_.is_signalled({PG_FAULT}))
+            {
+                return;
+            }
         }
 
         // Do not proceed with this operation if condition is not satisfied.
@@ -658,18 +695,22 @@ struct CPUState
     /// @tparam byte
     /// @tparam mode
     /// @tparam is_data
-    /// @tparam store
+    /// @tparam is_store
     /// @tparam load_imm
     /// @tparam sign_extend_byte
-    template <bool byte, bool mode, bool is_data, bool store, bool load_imm,
-              bool sign_extend_byte>
+    template <bool byte, bool inst_mode, bool is_data, bool is_store,
+              bool load_imm, bool sign_extend_byte>
     void op_mem()
     {
-        cout << "performing mem data load, byte = " << byte << endl;
+        const bool user_mode = is_user_mode();
 
-        if (!is_valid_mode(mode))
+        cout << "mem data load " << byte << " " << inst_mode << " " << is_data
+             << " " << is_store << " " << load_imm << " " << sign_extend_byte
+             << "\n";
+
+        if (user_mode && !inst_mode)
         {
-            // Todo: Generate interrupt.
+            interrupt_.signal(ILL_INST);
             return;
         }
 
@@ -677,8 +718,6 @@ struct CPUState
         {
             load_inst_word(register_file_.get(IMM));
         }
-
-        // Todo: generate page fault interrupts / return here.
 
         const uint16_t inst_word = inst_.read();
 
@@ -691,18 +730,19 @@ struct CPUState
 
         const uint16_t virt_addr = y + z;
         const uint32_t phys_addr =
-            is_user_mode()
-                ? mmu_.resolve(virt_addr, ptb_.read(), true, true, false)
-                : virt_addr;
+            user_mode ? mmu_.resolve(virt_addr, ptb_.read(), is_data, is_store,
+                                     interrupt_)
+                      : virt_addr;
 
-        if (mmu_.page_fault() || store && mmu_.read_only_fault())
+        if (interrupt_.is_signalled({PG_FAULT, RO_FAULT}))
         {
-            // Todo: Generate interrupt and return in case of faults.
+            return;
         }
 
-        Memory &memory = is_data ? mmio_.get_data(mode) : mmio_.get_code(mode);
+        Memory &memory =
+            is_data ? mmio_.get_data(inst_mode) : mmio_.get_code(inst_mode);
 
-        if (store)
+        if (is_store)
         {
             memory.store(phys_addr, reg_x.read(), byte);
         }
@@ -715,7 +755,7 @@ struct CPUState
     void op_invalid()
     {
         cerr << "invalid operation." << endl;
-        // Todo: Generate illegal instruction interrupt.
+        interrupt_.signal(ILL_INST);
     }
 
     void op_none()
@@ -726,12 +766,6 @@ struct CPUState
     bool is_user_mode() const
     {
         return status_.read() & 0x8;
-    }
-
-    bool is_valid_mode(bool mode) const
-    {
-        const bool is_user = is_user_mode();
-        return !is_user || is_user && mode;
     }
 };
 } // namespace MPCE
