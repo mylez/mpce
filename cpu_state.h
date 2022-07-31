@@ -13,7 +13,7 @@
 #define REG_SEL_X(inst) ((inst)&0x0007)
 #define REG_SEL_Y(inst) (((inst) >> 3) & 0x0007)
 #define REG_SEL_Z(inst) (((inst) >> 6) & 0x0007)
-#define BIND_OP(op) (std::bind(op, this))
+#define BIND_OP(op) (std::bind((op), this))
 #define MAP_OPCODE(opcode, op)                                                 \
     printf("mapping opcode %s: %s\n", #opcode, #op);                           \
     opcode_mapping_.at((opcode) >> 1) = (op)

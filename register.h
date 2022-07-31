@@ -70,13 +70,7 @@ class RegisterFile
   public:
     Register<uint16_t> &get(const uint8_t index)
     {
-        if (index >= REGISTER_FILE_SIZE)
-        {
-            // Error condition.
-            return registers_[R0];
-        }
-
-        return registers_[index];
+        return registers_[index & 0x07];
     }
 };
 

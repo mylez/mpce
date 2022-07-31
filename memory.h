@@ -13,20 +13,72 @@ namespace MPCE
 
 class Memory
 {
+  private:
+    ///
+    std::optional<std::function<uint16_t(uint32_t)>> mapped_io_load_;
+
+    ///
+    std::optional<std::function<void(uint32_t, uint16_t)>> mapped_io_store_;
+
+    ///
+    uint32_t mapped_io_begin_;
+
   public:
-    virtual uint16_t load(uint32_t phys_addr, bool byte = false) const = 0;
+    /// @param phys_addr
+    /// @param byte
+    ///@returns description of the return value
+    virtual uint16_t load(uint32_t phys_addr, bool byte = false) const
+    {
+        if (mapped_io_load_ && phys_addr > mapped_io_begin_)
+        {
+            return (*mapped_io_load_)(phys_addr - mapped_io_begin_ - 1);
+        }
 
-    virtual void store(uint32_t phys_addr, uint16_t value,
-                       bool byte = false) = 0;
+        return do_load(phys_addr, byte);
+    }
 
+    /// @param phys_addr
+    /// @param value
+    /// @param byte
+    virtual void store(uint32_t phys_addr, uint16_t value, bool byte = false)
+    {
+        if (mapped_io_store_ && phys_addr > mapped_io_begin_)
+        {
+            (*mapped_io_store_)(phys_addr - mapped_io_begin_ - 1, value);
+            return;
+        }
+
+        do_store(phys_addr, value, byte);
+    };
+
+    /// @returns
     virtual uint32_t capacity() const = 0;
+
+    /// @param mapped_io_begin
+    /// @param mapped_io_load
+    /// @param mapped_io_store
+    void map_io(uint32_t mapped_io_begin,
+                std::function<uint16_t(uint32_t)> mapped_io_load,
+                std::function<void(uint32_t, uint16_t)> mapped_io_store)
+    {
+        mapped_io_begin_ = mapped_io_begin;
+        mapped_io_load_ = mapped_io_load;
+        mapped_io_store_ = mapped_io_store;
+    }
+
+  protected:
+    virtual void do_store(uint32_t, uint16_t, bool) = 0;
+
+    virtual uint16_t do_load(uint32_t, bool) const = 0;
 };
 
 class WordAddressibleMemory : public Memory
 {
   private:
+    ///
     std::unique_ptr<std::vector<uint16_t>> memory_;
 
+    ///
     std::string name_;
 
   public:
@@ -39,8 +91,16 @@ class WordAddressibleMemory : public Memory
              << endl;
     }
 
+    /// @returns The number of words that this memory holds.
+    uint32_t capacity() const override
+    {
+        return memory_->capacity();
+    }
+
+  protected:
     /// @param phys_addr
-    uint16_t load(uint32_t phys_addr, bool byte = false) const override
+    /// @param byte
+    uint16_t do_load(uint32_t phys_addr, bool byte = false) const override
     {
         printf("mem %s: loading %s from addr 0x%x\n", name_.c_str(),
                byte ? "byte" : "word", phys_addr);
@@ -49,17 +109,12 @@ class WordAddressibleMemory : public Memory
 
     /// @param phys_addr
     /// @param value
-    void store(uint32_t phys_addr, uint16_t value, bool byte = false) override
+    void do_store(uint32_t phys_addr, uint16_t value,
+                  bool byte = false) override
     {
         printf("mem %s: storing %s 0x%x to addr 0x%x\n", name_.c_str(),
                byte ? "byte" : "word", value, phys_addr);
         memory_->at(phys_addr) = value;
-    }
-
-    /// @returns The number of words that this memory holds.
-    uint32_t capacity() const override
-    {
-        return memory_->capacity();
     }
 };
 
@@ -80,12 +135,12 @@ class ByteAddressibleMemory : public Memory
     {
     }
 
-    uint16_t load(const uint32_t phys_addr, bool byte) const override
+    uint16_t do_load(const uint32_t phys_addr, bool byte) const override
     {
         return byte ? load_byte(phys_addr) : load_word(phys_addr);
     }
 
-    void store(const uint32_t phys_addr, uint16_t value, bool byte) override
+    void do_store(const uint32_t phys_addr, uint16_t value, bool byte) override
     {
         if (byte)
         {
@@ -161,6 +216,8 @@ class ByteAddressibleMemory : public Memory
         return memory_.load(phys_addr >> 1);
     }
 
+    /// @param phys_addr
+    /// @param value
     void set_word(const uint32_t phys_addr, const uint16_t value)
     {
         memory_.store(phys_addr >> 1, value);
