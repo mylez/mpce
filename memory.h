@@ -1,10 +1,10 @@
 #pragma once
 
+#include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <vector>
-
-#include <iostream>
 
 using namespace std;
 
@@ -15,10 +15,10 @@ class Memory
 {
   private:
     ///
-    std::optional<std::function<uint16_t(uint32_t)>> mapped_io_load_;
+    optional<function<uint16_t(uint32_t)>> mapped_io_load_;
 
     ///
-    std::optional<std::function<void(uint32_t, uint16_t)>> mapped_io_store_;
+    optional<function<void(uint32_t, uint16_t)>> mapped_io_store_;
 
     ///
     uint32_t mapped_io_begin_;
@@ -31,6 +31,7 @@ class Memory
     {
         if (mapped_io_load_ && phys_addr > mapped_io_begin_)
         {
+            printf("rerouting load to io, phys_addr=%4x\n", phys_addr);
             return (*mapped_io_load_)(phys_addr - mapped_io_begin_ - 1);
         }
 
@@ -44,6 +45,7 @@ class Memory
     {
         if (mapped_io_store_ && phys_addr > mapped_io_begin_)
         {
+            printf("rerouting store to io, phys_addr=%4x\n", phys_addr);
             (*mapped_io_store_)(phys_addr - mapped_io_begin_ - 1, value);
             return;
         }
@@ -58,8 +60,8 @@ class Memory
     /// @param mapped_io_load
     /// @param mapped_io_store
     void map_io(uint32_t mapped_io_begin,
-                std::function<uint16_t(uint32_t)> mapped_io_load,
-                std::function<void(uint32_t, uint16_t)> mapped_io_store)
+                function<uint16_t(uint32_t)> mapped_io_load,
+                function<void(uint32_t, uint16_t)> mapped_io_store)
     {
         mapped_io_begin_ = mapped_io_begin;
         mapped_io_load_ = mapped_io_load;
@@ -76,15 +78,15 @@ class WordAddressibleMemory : public Memory
 {
   private:
     ///
-    std::vector<uint16_t> memory_;
+    vector<uint16_t> memory_;
 
     ///
-    std::string name_;
+    string name_;
 
   public:
     /// @param name
     /// @param capacity
-    WordAddressibleMemory(const std::string name, const uint32_t capacity)
+    WordAddressibleMemory(const string name, const uint32_t capacity)
         : memory_(capacity, 0), name_(name)
     {
         cout << "initializing memory " << name << " of size " << capacity
@@ -130,7 +132,7 @@ class ByteAddressibleMemory : public Memory
   public:
     /// @param name
     /// @param capacity
-    ByteAddressibleMemory(std::string name, uint32_t capacity)
+    ByteAddressibleMemory(string name, uint32_t capacity)
         : memory_{name, capacity}
     {
     }

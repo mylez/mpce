@@ -1,11 +1,15 @@
 #pragma once
 
 #include <cstdint>
+#include <mutex>
 #include <unordered_set>
 #include <vector>
 
 namespace MPCE
 {
+
+using namespace std;
+
 enum InterruptSignal
 {
     IRQ0,
@@ -21,9 +25,11 @@ enum InterruptSignal
 class Interrupt
 {
   public:
-    uint8_t cause() const
+    uint8_t cause()
     {
         uint8_t status_byte = 0;
+
+        scoped_lock<mutex> lock(mutex_);
 
         set_bit_if_signalled(status_byte, 0, IRQ0);
         set_bit_if_signalled(status_byte, 1, IRQ1);
@@ -37,11 +43,15 @@ class Interrupt
 
     void signal(const InterruptSignal signal)
     {
+        scoped_lock<mutex> lock(mutex_);
+
         pending_interrupts_.insert(signal);
     }
 
-    bool is_signalled(const std::vector<InterruptSignal> signals) const
+    bool is_signalled(const vector<InterruptSignal> signals)
     {
+        scoped_lock<mutex> lock(mutex_);
+
         for (const InterruptSignal signal : signals)
         {
             if (pending_interrupts_.count(signal))
@@ -55,6 +65,8 @@ class Interrupt
 
     void clear()
     {
+        scoped_lock<mutex> lock(mutex_);
+
         pending_interrupts_.clear();
     }
 
@@ -87,7 +99,9 @@ class Interrupt
         byte |= priority << 4;
     }
 
-    std::unordered_set<InterruptSignal> pending_interrupts_;
+    unordered_set<InterruptSignal> pending_interrupts_;
+
+    mutex mutex_;
 };
 
 } // namespace MPCE

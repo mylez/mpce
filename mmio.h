@@ -9,6 +9,8 @@
 namespace MPCE
 {
 
+using namespace std;
+
 class MMIO
 {
     /// Memory segments for KERN mode.
@@ -26,55 +28,82 @@ class MMIO
     /// the address preceding 0xf000 is 0xefff.
     const uint32_t mapped_io_begin_ = 0x1'0000 - mapped_io_size_ - 1;
 
-    std::vector<std::function<uint16_t(uint32_t)>> mapped_io_load_;
+    vector<function<uint16_t()>> mapped_io_load_;
 
-    std::vector<std::function<void(uint32_t, uint16_t)>> mapped_io_store_;
+    vector<function<void(uint16_t)>> mapped_io_store_;
 
     IOSerialInterface serial_interface_;
 
-  public:
-    MMIO()
-        : mapped_io_load_{mapped_io_size_, [](uint32_t) { return 0; }},
-          mapped_io_store_{mapped_io_size_, [](uint32_t, uint32_t) {}}
-    {
-        using namespace std::placeholders;
+    vector<function<void(Interrupt &)>> irq_notifiers_;
 
-        kern_data_.map_io(mapped_io_begin_, std::bind(&MMIO::io_load, this, _1),
-                          std::bind(&MMIO::io_store, this, _1, _2));
+  public:
+    ///
+    MMIO() : mapped_io_load_{mapped_io_size_}, mapped_io_store_{mapped_io_size_}
+    {
+        using namespace placeholders;
+
+        cout << "initializing mmio\n";
+
+        kern_data_.map_io(mapped_io_begin_, bind(&MMIO::io_load, this, _1),
+                          bind(&MMIO::io_store, this, _1, _2));
 
         /// Register the mapped IO handlers for the serial console.
 
-        mapped_io_load_[0x00] =
-            std::bind(&IOSerialInterface::mmio_read, &serial_interface_);
+        mapped_io_load_.at(0x00) =
+            bind(&IOSerialInterface::mmio_read, &serial_interface_);
 
-        mapped_io_store_[0x00] =
-            std::bind(&IOSerialInterface::mmio_write, &serial_interface_, _1);
+        mapped_io_store_.at(0x00) =
+            bind(&IOSerialInterface::mmio_write, &serial_interface_, _1);
 
-        mapped_io_store_[0x01] = std::bind(
-            &IOSerialInterface::mmio_buffer_nonempty, &serial_interface_);
+        mapped_io_store_.at(0x01) =
+            bind(&IOSerialInterface::mmio_buffer_nonempty, &serial_interface_);
+
+        irq_notifiers_.push_back(
+            bind(&IOSerialInterface::mmio_irq_notify, &serial_interface_, _1));
     }
 
+    /// @param is_user_mode
     Memory &get_code(bool is_user_mode)
     {
         return is_user_mode ? user_code_ : kern_code_;
     }
 
+    /// @param is_user_mode
     Memory &get_data(bool is_user_mode)
     {
         return is_user_mode ? user_data_ : kern_data_;
     }
 
-    uint16_t io_load(uint32_t phys_addr)
+    /// @returns
+    IOSerialInterface &serial_interface()
     {
-        printf("mapped io_load: phys_addr=%4x\n", phys_addr);
-        return 0;
+        return serial_interface_;
     }
 
-    void io_store(uint32_t phys_addr, uint16_t value)
+    /// @param interrupt
+    void irq_notify(Interrupt &interrupt)
     {
-        printf("mapped io_load: phys_addr=%4x, value=%4x\n", phys_addr, value);
+        for (auto notify : irq_notifiers_)
+        {
+            notify(interrupt);
+        }
     }
 
   private:
+    /// @param offset
+    /// @returns
+    uint16_t io_load(const uint32_t offset)
+    {
+        printf("mapped io_load: offset=%4x\n", offset);
+        return mapped_io_load_.at(offset)();
+    }
+
+    /// @param offset
+    /// @param value
+    void io_store(const uint32_t offset, const uint16_t value)
+    {
+        printf("mapped io_store: offset=x%4x, value=x%4x\n", offset, value);
+        return mapped_io_store_.at(offset)(value);
+    }
 };
 } // namespace MPCE

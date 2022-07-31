@@ -33,10 +33,10 @@ template <typename DataType> class Register
     DataType mask_;
 
     /// Name of register.
-    const std::string name_;
+    const string name_;
 
   public:
-    Register(const std::string name, const DataType mask = {})
+    Register(const string name, const DataType mask = {})
         : data_{}, mask_(mask), name_{name}
     {
         cout << "initializing register " << name_ << endl;
@@ -54,7 +54,7 @@ template <typename DataType> class Register
         data_ = data & ~mask_;
     }
 
-    std::string name() const
+    string name() const
     {
         return name_;
     }
