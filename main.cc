@@ -22,13 +22,8 @@ int main(int argc, char *argv[])
     cpu_state.mmio().get_code(false).store(2, inst_io_store);
     cpu_state.mmio().get_code(false).store(3, 0xf000);
 
-    cpu_state.mmio().serial_interface().start_console();
-
     for (int i = 0; i < 2; i++)
     {
-        this_thread::sleep_for(chrono::seconds(1));
         cpu_state.cycle();
     }
-
-    cpu_state.mmio().serial_interface().join_console();
 }
