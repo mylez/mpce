@@ -1,5 +1,7 @@
 #pragma once
 
+#include "interrupt.h"
+#include "io_serial.h"
 #include "memory.h"
 
 #include <functional>
@@ -28,6 +30,8 @@ class MMIO
 
     std::vector<std::function<void(uint32_t, uint16_t)>> mapped_io_store_;
 
+    IOSerialInterface serial_interface_;
+
   public:
     MMIO()
         : mapped_io_load_{mapped_io_size_, [](uint32_t) { return 0; }},
@@ -37,6 +41,17 @@ class MMIO
 
         kern_data_.map_io(mapped_io_begin_, std::bind(&MMIO::io_load, this, _1),
                           std::bind(&MMIO::io_store, this, _1, _2));
+
+        /// Register the mapped IO handlers for the serial console.
+
+        mapped_io_load_[0x00] =
+            std::bind(&IOSerialInterface::mmio_read, &serial_interface_);
+
+        mapped_io_store_[0x00] =
+            std::bind(&IOSerialInterface::mmio_write, &serial_interface_, _1);
+
+        mapped_io_store_[0x01] = std::bind(
+            &IOSerialInterface::mmio_buffer_nonempty, &serial_interface_);
     }
 
     Memory &get_code(bool is_user_mode)
