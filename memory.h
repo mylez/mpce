@@ -76,7 +76,7 @@ class WordAddressibleMemory : public Memory
 {
   private:
     ///
-    std::unique_ptr<std::vector<uint16_t>> memory_;
+    std::vector<uint16_t> memory_;
 
     ///
     std::string name_;
@@ -84,9 +84,9 @@ class WordAddressibleMemory : public Memory
   public:
     /// @param name
     /// @param capacity
-    WordAddressibleMemory(std::string name, uint32_t capacity) : name_(name)
+    WordAddressibleMemory(const std::string name, const uint32_t capacity)
+        : memory_(capacity, 0), name_(name)
     {
-        memory_ = std::make_unique<std::vector<uint16_t>>(capacity, 0);
         cout << "initializing memory " << name << " of size " << capacity
              << endl;
     }
@@ -94,7 +94,7 @@ class WordAddressibleMemory : public Memory
     /// @returns The number of words that this memory holds.
     uint32_t capacity() const override
     {
-        return memory_->capacity();
+        return memory_.capacity();
     }
 
   protected:
@@ -104,7 +104,7 @@ class WordAddressibleMemory : public Memory
     {
         printf("mem %s: loading %s from addr 0x%x\n", name_.c_str(),
                byte ? "byte" : "word", phys_addr);
-        return memory_->at(phys_addr);
+        return memory_.at(phys_addr);
     }
 
     /// @param phys_addr
@@ -114,7 +114,7 @@ class WordAddressibleMemory : public Memory
     {
         printf("mem %s: storing %s 0x%x to addr 0x%x\n", name_.c_str(),
                byte ? "byte" : "word", value, phys_addr);
-        memory_->at(phys_addr) = value;
+        memory_.at(phys_addr) = value;
     }
 };
 
@@ -135,6 +135,13 @@ class ByteAddressibleMemory : public Memory
     {
     }
 
+    /// @returns Memory capacity in words.
+    uint32_t capacity() const override
+    {
+        return memory_.capacity();
+    }
+
+  protected:
     uint16_t do_load(const uint32_t phys_addr, bool byte) const override
     {
         return byte ? load_byte(phys_addr) : load_word(phys_addr);
@@ -150,12 +157,6 @@ class ByteAddressibleMemory : public Memory
         {
             store_word(phys_addr, value);
         }
-    }
-
-    /// @returns Memory capacity in words.
-    uint32_t capacity() const override
-    {
-        return memory_.capacity();
     }
 
   private:
