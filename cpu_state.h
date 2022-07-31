@@ -625,9 +625,6 @@ struct CPUState
               bool toggle_mode = false>
     void op_alu()
     {
-        cout << "performing alu op " << alu_sel << ", carry_in " << carry_in
-             << endl;
-
         const bool user_mode = is_user_mode();
 
         if (user_mode && toggle_mode)
@@ -649,7 +646,6 @@ struct CPUState
         // Do not proceed with this operation if condition is not satisfied.
         if (static_cast<bool>(cond & status_.read()) != status_invert)
         {
-            cout << "condition not satisfied\n";
             return;
         }
 

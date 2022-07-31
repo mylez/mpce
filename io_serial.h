@@ -135,7 +135,7 @@ class IOSerialInterface : public IOInterface
 
             if (byte_out)
             {
-                cout << static_cast<char>(*byte_out);
+                cout << static_cast<char>(*byte_out) << flush;
             }
 
             this_thread::sleep_for(sleep_duration_);
