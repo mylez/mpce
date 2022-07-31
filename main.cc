@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < 2; i++)
     {
+        this_thread::sleep_for(chrono::seconds(1));
         cpu_state.cycle();
     }
 
