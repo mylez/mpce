@@ -3,6 +3,7 @@
 #include "interrupt.h"
 #include "io.h"
 
+#include <atomic>
 #include <cstdint>
 #include <iostream>
 #include <mutex>
