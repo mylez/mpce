@@ -13,7 +13,7 @@
 #define REG_SEL_X(inst) ((inst)&0x0007)
 #define REG_SEL_Y(inst) (((inst) >> 3) & 0x0007)
 #define REG_SEL_Z(inst) (((inst) >> 6) & 0x0007)
-#define BIND_OP(op) (std::bind((op), this))
+#define BIND_OP(op) (bind((op), this))
 #define MAP_OPCODE(opcode, op)                                                 \
     printf("mapping opcode %s: %s\n", #opcode, #op);                           \
     opcode_mapping_.at((opcode) >> 1) = (op)
@@ -28,15 +28,17 @@
 namespace MPCE
 {
 
+using namespace std;
+
 struct CPUState
 {
   private:
-    using Operation = std::function<void()>;
+    using Operation = function<void()>;
 
     /// Map a 7-bit opcode to one of 128 Operation functions. Initialize entries
     /// to op_invalid.
-    std::vector<Operation> opcode_mapping_{OPCODE_MAP_SIZE,
-                                           BIND_OP(&CPUState::op_invalid)};
+    vector<Operation> opcode_mapping_{OPCODE_MAP_SIZE,
+                                      BIND_OP(&CPUState::op_invalid)};
 
     /// Main architectural registers, including program counter.
     RegisterFile register_file_;
@@ -135,7 +137,8 @@ struct CPUState
         // b8   x <- mem_bu_kern[y + z], imm
         MAP_OPCODE(
             0xb8,
-            BIND_OP((&CPUState::op_mem<true, false, true, true, true, false>)));
+            BIND_OP(
+                (&CPUState::op_mem<true, false, true, false, true, false>)));
 
         // ba   x <- mem_bs_kern[y + z]
         MAP_OPCODE(
@@ -401,10 +404,12 @@ struct CPUState
 
         if (cycle_began_as_user)
         {
-            context_switch_to_isr_if({TIME_OUT, IRQ0, IRQ1, IRQ2, IRQ3});
+            mmio_.irq_notify(interrupt_);
+            context_switch_to_isr_if({IRQ0, IRQ1, IRQ2, IRQ3, TIME_OUT});
         }
 
         load_inst_word(inst_);
+        printf("inst=%4x\n", inst_.read());
 
         if (cycle_began_as_user)
         {
@@ -436,13 +441,20 @@ struct CPUState
 
         if (cycle_began_as_user)
         {
-            context_switch_to_isr_if({PG_FAULT, RO_FAULT, ILL_INST});
+            mmio_.irq_notify(interrupt_);
+            context_switch_to_isr_if({IRQ0, IRQ1, IRQ2, IRQ3, TIME_OUT,
+                                      PG_FAULT, RO_FAULT, ILL_INST});
             return;
         }
     }
 
+    MMIO &mmio()
+    {
+        return mmio_;
+    }
+
   private:
-    void context_switch_to_isr_if(const std::vector<InterruptSignal> signals)
+    void context_switch_to_isr_if(const vector<InterruptSignal> signals)
     {
         if (!interrupt_.is_signalled(signals))
         {
@@ -707,9 +719,9 @@ struct CPUState
     {
         const bool user_mode = is_user_mode();
 
-        cout << "mem data load " << byte << " " << inst_mode << " " << is_data
-             << " " << is_store << " " << load_imm << " " << sign_extend_byte
-             << "\n";
+        cout << "mem data byte=" << byte << " mode=" << inst_mode
+             << " data=" << is_data << " store=" << is_store
+             << " imm=" << load_imm << " extend=" << sign_extend_byte << "\n";
 
         if (user_mode && !inst_mode)
         {
