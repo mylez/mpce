@@ -5,8 +5,9 @@
 
 int main(int argc, char *argv[])
 {
-    MPCE::IOSerialInterface io_serial;
+    MPCE::CPUState cpu_state;
 
-    io_serial.start_console();
-    io_serial.join_console();
+    cpu_state.cycle();
+    cpu_state.cycle();
+    cpu_state.cycle();
 }
