@@ -99,7 +99,7 @@ class Interrupt
         byte |= priority << 4;
     }
 
-    unordered_set<InterruptSignal> pending_interrupts_;
+    unordered_set<uint8_t> pending_interrupts_;
 
     mutex mutex_;
 };
