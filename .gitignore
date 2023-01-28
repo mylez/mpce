@@ -4,3 +4,8 @@
 mpce
 cpu
 test.py
+bazel-bin
+bazel-mpce
+bazel-out
+bazel-testlogs
+*.swp
