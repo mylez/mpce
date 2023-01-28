@@ -6,17 +6,17 @@
 
 #include <functional>
 
-namespace MPCE
+namespace mpce
 {
 
-class IOInterface
+class io_interface_t
 {
   public:
     virtual uint16_t mmio_read() = 0;
 
     virtual void mmio_write(const uint16_t) = 0;
 
-    virtual void mmio_irq_notify(Interrupt &) = 0;
+    virtual void mmio_irq_notify(interrupt_t &) = 0;
 };
 
-} // namespace MPCE
+} // namespace mpce

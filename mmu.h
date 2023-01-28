@@ -12,84 +12,46 @@
 #define IS_PTE_READ_ONLY(pte) (static_cast<bool>(pte & 0x4000))
 #define IS_PTE_UNMAPPED(pte) (static_cast<bool>((pte)&0x8000))
 
-namespace MPCE
+namespace mpce
 {
 
-class MMU
+class mmu_t
 {
   private:
-    WordAddressibleMemory page_table_code_{"page_table_code", 0x1'0000};
+    word_addressible_memory_t page_table_code_{"page_table_code", 0x1'0000};
 
-    WordAddressibleMemory page_table_data_{"page_table_data", 0x1'0000};
+    word_addressible_memory_t page_table_data_{"page_table_data", 0x1'0000};
 
     bool read_only_fault_ = false;
 
     bool page_fault_ = false;
 
   public:
+    /// @param virt_addr
+    /// @param ptb
+    /// @param use_data_page_table
+    /// @param is_write
+    /// @param interrupt
+    /// @return
     uint32_t resolve(const uint16_t virt_addr, uint8_t ptb,
                      const bool use_data_page_table, const bool is_write,
-                     Interrupt &interrupt)
-    {
-        const WordAddressibleMemory &page_table =
-            use_data_page_table ? page_table_data_ : page_table_code_;
+                     interrupt_t &interrupt);
 
-        const uint32_t offset = VIRT_PAGE_OFFSET(virt_addr);
-        const uint32_t page_number = VIRT_PAGE_NUM(virt_addr);
-        const uint32_t pte_lookup_index =
-            PTE_LOOKUP_INDEX(ptb, page_number, false);
-
-        const uint16_t page_table_entry = page_table.load(pte_lookup_index);
-
-        if (IS_PTE_UNMAPPED(page_table_entry))
-        {
-            interrupt.signal(PG_FAULT);
-        }
-
-        if (IS_PTE_READ_ONLY(page_table_entry) && is_write)
-        {
-            interrupt.signal(RO_FAULT);
-        }
-
-        return PHYS_ADDR(page_table_entry, offset);
-    }
-
-    WordAddressibleMemory &page_table(bool is_data)
-    {
-        if (is_data)
-        {
-            return page_table_data_;
-        }
-        else
-        {
-            return page_table_code_;
-        }
-    }
+    /// @param is_data
+    /// @return
+    word_addressible_memory_t &page_table(bool is_data);
 
     /// @returns True if a read only fault has occurred.
-    bool read_only_fault()
-    {
-        return read_only_fault_;
-    }
+    bool read_only_fault();
 
     /// @returns True if a page fault has occurred.
-    bool page_fault()
-    {
-        return page_fault_;
-    }
+    bool page_fault();
 
     /// @returns True if any fault has occurred.
-    bool fault()
-    {
-        return read_only_fault() || page_fault();
-    }
+    bool fault();
 
     /// Reset fault flags to false.
-    void reset_fault()
-    {
-        read_only_fault_ = false;
-        page_fault_ = false;
-    }
+    void reset_fault();
 };
 
-} // namespace MPCE
+}; // namespace mpce

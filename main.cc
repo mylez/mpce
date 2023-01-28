@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     FLAGS_stderrthreshold = 0;
     FLAGS_minloglevel = 0;
 
-    MPCE::CPUState cpu_state;
+    mpce::cpu_state_t cpu_state;
 
     // Load immediate to r7:
     // 32   x <- y ^ z, imm

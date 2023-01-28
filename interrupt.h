@@ -5,12 +5,12 @@
 #include <unordered_set>
 #include <vector>
 
-namespace MPCE
+namespace mpce
 {
 
 using namespace std;
 
-enum InterruptSignal
+enum interrupt_signal_t
 {
     IRQ0,
     IRQ1,
@@ -22,59 +22,22 @@ enum InterruptSignal
     ILL_INST
 };
 
-class Interrupt
+class interrupt_t
 {
   public:
     /// @brief
     /// @return
-    uint8_t cause()
-    {
-        uint8_t status_byte = 0;
+    uint8_t cause();
 
-        scoped_lock<mutex> lock(mutex_);
-
-        set_bit_if_signalled(status_byte, 0, IRQ0);
-        set_bit_if_signalled(status_byte, 1, IRQ1);
-        set_bit_if_signalled(status_byte, 2, IRQ2);
-        set_bit_if_signalled(status_byte, 3, IRQ3);
-
-        set_signal_priority(status_byte);
-
-        return status_byte;
-    }
-
-    void signal(const InterruptSignal signal)
-    {
-        scoped_lock<mutex> lock(mutex_);
-
-        pending_interrupts_.insert(signal);
-    }
+    void signal(const interrupt_signal_t signal);
 
     /// @brief
     /// @param signals
     /// @return
-    bool is_signalled(const vector<InterruptSignal> signals)
-    {
-        scoped_lock<mutex> lock(mutex_);
-
-        for (const InterruptSignal signal : signals)
-        {
-            if (pending_interrupts_.count(signal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    bool is_signalled(const vector<interrupt_signal_t> signals);
 
     /// @brief
-    void clear()
-    {
-        scoped_lock<mutex> lock(mutex_);
-
-        pending_interrupts_.clear();
-    }
+    void clear();
 
   private:
     /// @brief
@@ -82,40 +45,17 @@ class Interrupt
     /// @param bit
     /// @param signal
     void set_bit_if_signalled(uint8_t &byte, const uint8_t bit,
-                              const InterruptSignal signal) const
-    {
-        if (pending_interrupts_.count(signal))
-        {
-            byte |= 1 << bit;
-        }
-    }
+                              const interrupt_signal_t signal) const;
 
     /// @brief
     /// @param byte
-    void set_signal_priority(uint8_t &byte) const
-    {
-        uint8_t priority = 0;
-        uint8_t i = 1;
-
-        for (const InterruptSignal signal :
-             {TIME_OUT, RO_FAULT, PG_FAULT, ILL_INST})
-        {
-            if (pending_interrupts_.count(signal))
-            {
-                priority = i;
-            }
-
-            i++;
-        }
-
-        byte |= priority << 4;
-    }
+    void set_signal_priority(uint8_t &byte) const;
 
     /// @brief
-    unordered_set<InterruptSignal> pending_interrupts_;
+    unordered_set<interrupt_signal_t> pending_interrupts_;
 
     /// @brief
     mutex mutex_;
 };
 
-} // namespace MPCE
+} // namespace mpce

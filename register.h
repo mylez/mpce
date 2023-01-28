@@ -4,15 +4,15 @@
 #include <iostream>
 #include <string>
 
-#include <glog/glog.h>
+#include <glog/logging.h>
 
 using namespace std;
 
-namespace MPCE
+namespace mpce
 {
 
 /// @brief
-enum RegisterIndex
+enum register_index
 {
     R0 = 0,
     R1 = 1,
@@ -28,15 +28,15 @@ enum RegisterIndex
 const unsigned int REGISTER_FILE_SIZE = 8;
 
 /// @brief
-/// @tparam register_t
-template <typename register_t> class Register
+/// @tparam dtype_t
+template <typename dtype_t> class register_t
 {
   private:
     /// The data stored in this register.
-    register_t data_;
+    dtype_t data_;
 
     /// High bits in mask are disabled in the register.
-    register_t mask_;
+    dtype_t mask_;
 
     /// Name of register.
     const string name_;
@@ -45,14 +45,14 @@ template <typename register_t> class Register
     /// @brief
     /// @param name
     /// @param mask
-    Register(const string name, const register_t mask = {})
+    register_t(const string name, const dtype_t mask = {})
         : data_{}, mask_(mask), name_{name}
     {
     }
 
     /// @brief
     /// @return
-    register_t read() const
+    dtype_t read() const
     {
         LOG(INFO) << "reading " << static_cast<uint32_t>(data_)
                   << " from register " << name_;
@@ -61,7 +61,7 @@ template <typename register_t> class Register
 
     /// @brief
     /// @param data
-    void write(const register_t &data)
+    void write(const dtype_t &data)
     {
         LOG(INFO) << "writing " << static_cast<uint32_t>(data)
                   << " to register " << name_;
@@ -81,7 +81,7 @@ class RegisterFile
 {
   private:
     /// @brief
-    Register<uint16_t> registers_[REGISTER_FILE_SIZE] = {
+    register_t<uint16_t> registers_[REGISTER_FILE_SIZE] = {
         {"r0", 0xffff}, {"r1"}, {"r2"}, {"r3"},
         {"fp"},         {"sp"}, {"pc"}, {"imm"}};
 
@@ -89,10 +89,10 @@ class RegisterFile
     /// @brief
     /// @param index
     /// @return
-    Register<uint16_t> &get(const uint8_t index)
+    register_t<uint16_t> &get(const uint8_t index)
     {
         return registers_[index & 0x07];
     }
 };
 
-} // namespace MPCE
+} // namespace mpce

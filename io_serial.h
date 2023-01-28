@@ -11,12 +11,12 @@
 #include <queue>
 #include <thread>
 
-namespace MPCE
+namespace mpce
 {
 
 using namespace std;
 
-class IOSerialInterface : public IOInterface
+class io_serial_interface_t : public io_interface_t
 {
   private:
     queue<uint8_t> mmio_out_buffer_;
@@ -37,134 +37,32 @@ class IOSerialInterface : public IOInterface
 
   public:
     /// @returns
-    uint16_t mmio_read()
-    {
-        scoped_lock<mutex> lock(mutex_mmio_in_);
-
-        const uint8_t value = mmio_in_buffer_.front();
-        mmio_in_buffer_.pop();
-
-        LOG(INFO) << "io_serial read " << value << ", '"
-                  << static_cast<char>(value) << "'";
-
-        return value;
-    }
+    uint16_t mmio_read();
 
     /// @param byte
-    void mmio_write(const uint16_t byte)
-    {
-        scoped_lock<mutex> lock(mutex_mmio_out_);
-
-        LOG(INFO) << "io_serial write " << byte << ", '"
-                  << static_cast<char>(byte) << "'";
-
-        mmio_out_buffer_.push(byte);
-    }
+    void mmio_write(const uint16_t byte);
 
     /// @returns
-    uint16_t mmio_buffer_nonempty()
-    {
-        bool in_buffer_nonempty;
-
-        {
-            scoped_lock<mutex> lock(mutex_mmio_in_);
-            in_buffer_nonempty = mmio_in_buffer_.size();
-        }
-
-        return in_buffer_nonempty ? 1 : 0;
-    }
+    uint16_t mmio_buffer_nonempty();
 
     /// @param interrupt
-    void mmio_irq_notify(Interrupt &interrupt)
-    {
-        bool in_buffer_nonempty;
-
-        {
-            scoped_lock<mutex> lock(mutex_mmio_in_);
-            in_buffer_nonempty = mmio_in_buffer_.size();
-        }
-
-        if (in_buffer_nonempty)
-        {
-            interrupt.signal(IRQ1);
-        }
-    }
+    void mmio_irq_notify(interrupt_t &interrupt);
 
     ///
-    void start_console()
-    {
-        running_ = true;
-
-        // Console input thread, for reading in keystrokes and queueing them in
-        // the MMIO.
-        console_in_thread_ = thread(bind(&IOSerialInterface::loop_in, this));
-
-        // Console output thread, for writing output from the MMIO output
-        // buffer.
-        console_out_thread_ = thread(bind(&IOSerialInterface::loop_out, this));
-    }
+    void start_console();
 
     ///
-    void join_console()
-    {
-        console_in_thread_.join();
-        console_out_thread_.join();
-    }
+    void join_console();
 
     ///
-    void stop_console()
-    {
-        running_ = false;
-    }
+    void stop_console();
 
   private:
     ///
-    void loop_out()
-    {
-        while (running_)
-        {
-            optional<uint8_t> byte_out = nullopt;
-
-            {
-                scoped_lock<mutex> lock(mutex_mmio_out_);
-
-                if (mmio_out_buffer_.size())
-                {
-                    byte_out = mmio_out_buffer_.front();
-                    mmio_out_buffer_.pop();
-                }
-            }
-
-            if (byte_out)
-            {
-                LOG(INFO) << static_cast<char>(*byte_out) << flush;
-            }
-
-            this_thread::sleep_for(sleep_duration_);
-        }
-    }
+    void loop_out();
 
     ///
-    void loop_in()
-    {
-        while (running_)
-        {
-            uint8_t byte_in;
-
-            /// Read a byte from stdin, including whitespace (noskipws).
-            cin >> noskipws >> byte_in;
-
-            {
-                scoped_lock<mutex> lock(mutex_mmio_in_);
-                mmio_in_buffer_.push(byte_in);
-            }
-
-            if (byte_in == 'Q')
-                running_ = false;
-
-            this_thread::sleep_for(sleep_duration_);
-        }
-    }
+    void loop_in();
 };
 
-} // namespace MPCE
+} // namespace mpce
