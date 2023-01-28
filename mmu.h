@@ -22,9 +22,9 @@ class MMU
 
     WordAddressibleMemory page_table_data_{"page_table_data", 0x1'0000};
 
-    bool read_only_fault_{false};
+    bool read_only_fault_ = false;
 
-    bool page_fault_{false};
+    bool page_fault_ = false;
 
   public:
     uint32_t resolve(const uint16_t virt_addr, uint8_t ptb,

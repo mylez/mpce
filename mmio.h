@@ -42,7 +42,7 @@ class MMIO
     {
         using namespace placeholders;
 
-        cout << "initializing mmio\n";
+        LOG(INFO) << "initializing mmio\n";
 
         kern_data_.map_io(mapped_io_begin_, bind(&MMIO::io_load, this, _1),
                           bind(&MMIO::io_store, this, _1, _2));
@@ -94,7 +94,7 @@ class MMIO
     /// @returns
     uint16_t io_load(const uint32_t offset)
     {
-        printf("mapped io_load: offset=%4x\n", offset);
+        LOG(INFO) << "mapped io_load: offset=" << offset;
         return mapped_io_load_.at(offset)();
     }
 
@@ -102,7 +102,8 @@ class MMIO
     /// @param value
     void io_store(const uint32_t offset, const uint16_t value)
     {
-        printf("mapped io_store: offset=x%4x, value=x%4x\n", offset, value);
+        LOG(INFO) << "mapped io_store: offset=" << offset
+                  << ", value=" << value;
         return mapped_io_store_.at(offset)(value);
     }
 };

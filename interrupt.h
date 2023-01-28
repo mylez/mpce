@@ -25,6 +25,8 @@ enum InterruptSignal
 class Interrupt
 {
   public:
+    /// @brief
+    /// @return
     uint8_t cause()
     {
         uint8_t status_byte = 0;
@@ -48,6 +50,9 @@ class Interrupt
         pending_interrupts_.insert(signal);
     }
 
+    /// @brief
+    /// @param signals
+    /// @return
     bool is_signalled(const vector<InterruptSignal> signals)
     {
         scoped_lock<mutex> lock(mutex_);
@@ -63,6 +68,7 @@ class Interrupt
         return false;
     }
 
+    /// @brief
     void clear()
     {
         scoped_lock<mutex> lock(mutex_);
@@ -71,6 +77,10 @@ class Interrupt
     }
 
   private:
+    /// @brief
+    /// @param byte
+    /// @param bit
+    /// @param signal
     void set_bit_if_signalled(uint8_t &byte, const uint8_t bit,
                               const InterruptSignal signal) const
     {
@@ -80,6 +90,8 @@ class Interrupt
         }
     }
 
+    /// @brief
+    /// @param byte
     void set_signal_priority(uint8_t &byte) const
     {
         uint8_t priority = 0;
@@ -99,8 +111,10 @@ class Interrupt
         byte |= priority << 4;
     }
 
+    /// @brief
     unordered_set<InterruptSignal> pending_interrupts_;
 
+    /// @brief
     mutex mutex_;
 };
 

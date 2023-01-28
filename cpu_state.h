@@ -14,9 +14,7 @@
 #define REG_SEL_Y(inst) (((inst) >> 3) & 0x0007)
 #define REG_SEL_Z(inst) (((inst) >> 6) & 0x0007)
 #define BIND_OP(op) (bind((op), this))
-#define MAP_OPCODE(opcode, op)                                                 \
-    printf("mapping opcode %s: %s\n", #opcode, #op);                           \
-    opcode_mapping_.at((opcode) >> 1) = (op)
+#define MAP_OPCODE(opcode, op) opcode_mapping_.at((opcode) >> 1) = (op)
 
 #define STATUS_NEGATIVE 0x08
 #define STATUS_ZERO 0x04
@@ -192,6 +190,9 @@ struct CPUState
             0x4e,
             BIND_OP(
                 (&CPUState::op_mem<false, false, false, false, false, false>)));
+
+        // 6c   x <- mem_bs_user[y + z], mem_bs_user[y + z] <- imm
+        MAP_OPCODE(0x6c, BIND_OP((&CPUState::op_ats)));
 
         // 6e   x <- mem_t_kern[y + z], imm
         MAP_OPCODE(
@@ -397,8 +398,12 @@ struct CPUState
     void cycle()
     {
         static int cycle_num = 0;
-        printf("\ncycle %d:\n", ++cycle_num);
-        printf("mode=%s\n", mode_.read() ? "USER" : "KERN");
+        LOG(INFO) << endl
+                  << " -------------------------------- "
+                  << "cycle " << ++cycle_num
+                  << " -------------------------------- " << endl;
+
+        LOG(INFO) << "mode=" << (mode_.read() ? "USER" : "KERN");
 
         const bool cycle_began_as_user = is_user_mode();
 
@@ -409,7 +414,7 @@ struct CPUState
         }
 
         load_inst_word(inst_);
-        printf("inst=%4x\n", inst_.read());
+        LOG(INFO) << "inst=" << inst_.read();
 
         if (cycle_began_as_user)
         {
@@ -437,6 +442,7 @@ struct CPUState
         const Operation inst_op = opcode_mapping_[OPCODE(inst_word)];
 
         // Perform the operation.
+        LOG(INFO) << endl << " ---------- inst_op ---------";
         inst_op();
 
         if (cycle_began_as_user)
@@ -492,9 +498,9 @@ struct CPUState
 
         // Todo: Clean up ALL of the printf/cout logging, perhaps using
         // glog.
-        cout << "incrementing pc then loading from "
-             << (user_mode ? "user" : "kern") << " code to " << reg_x.name()
-             << endl;
+        LOG(INFO) << "incrementing pc then loading from "
+                  << (user_mode ? "user" : "kern") << " code to "
+                  << reg_x.name() << endl;
 
         const uint16_t word = mmio_.get_code(user_mode).load(a_phys_bus);
 
@@ -531,12 +537,12 @@ struct CPUState
     /// @tparam protected_inst
     /// @tparam load_imm
     /// @tparam toggle_mode
-    /// @tparam reg_type_t
+    /// @tparam register_type_t
     /// @param special_reg
     /// @returns An Operation object that can be called like a function.
     template <bool protected_inst, bool load_imm, bool toggle_mode,
-              typename reg_type_t>
-    Operation op_special_reg_read(const Register<reg_type_t> &special_reg)
+              typename register_type_t>
+    Operation op_special_reg_read(const Register<register_type_t> &special_reg)
     {
         return [&]() {
             if (load_imm)
@@ -569,10 +575,10 @@ struct CPUState
     }
 
     /// @tparam load_imm
-    /// @tparam reg_type_t
+    /// @tparam register_type_t
     /// @param special_reg
-    template <bool load_imm, typename reg_type_t>
-    Operation op_special_reg_write(Register<reg_type_t> &special_reg)
+    template <bool load_imm, typename register_type_t>
+    Operation op_special_reg_write(Register<register_type_t> &special_reg)
     {
         return [&]() {
             if (is_user_mode())
@@ -626,6 +632,8 @@ struct CPUState
     void op_alu()
     {
         const bool user_mode = is_user_mode();
+
+        LOG(INFO) << "op_alu";
 
         if (user_mode && toggle_mode)
         {
@@ -703,6 +711,40 @@ struct CPUState
         }
     }
 
+    /// @brief Atomic test and set.
+    void op_ats()
+    {
+        LOG(INFO) << "atomic test and set";
+        // Instruction word to decode register parameters.
+        const uint16_t inst_word = inst_.read();
+
+        // User data memory.
+        Memory &memory = mmio_.get_data(true);
+
+        // Various registers and values.
+        Register<uint16_t> &imm = register_file_.get(IMM);
+        Register<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
+        uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
+        uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
+
+        // Load immediate value, incrementing PC.
+        load_inst_word(imm);
+
+        const uint32_t phys_addr =
+            mmu_.resolve(y + z, ptb_.read(), true, true, interrupt_);
+
+        if (interrupt_.is_signalled({PG_FAULT, RO_FAULT}))
+        {
+            return;
+        }
+
+        // rx <- mem[ry + rz]
+        reg_x.write(memory.load(phys_addr, true));
+
+        // mem[ry + rz] <- imm
+        memory.store(phys_addr, imm.read(), true);
+    }
+
     /// @tparam byte
     /// @tparam mode
     /// @tparam is_data
@@ -715,9 +757,10 @@ struct CPUState
     {
         const bool user_mode = is_user_mode();
 
-        cout << "mem data byte=" << byte << " mode=" << inst_mode
-             << " data=" << is_data << " store=" << is_store
-             << " imm=" << load_imm << " extend=" << sign_extend_byte << "\n";
+        LOG(INFO) << "mem data byte=" << byte << " mode=" << inst_mode
+                  << " data=" << is_data << " store=" << is_store
+                  << " imm=" << load_imm << " extend=" << sign_extend_byte
+                  << "\n";
 
         if (user_mode && !inst_mode)
         {
@@ -771,7 +814,7 @@ struct CPUState
 
     void op_none()
     {
-        cout << " * * * * op_none * * * *\n";
+        LOG(INFO) << " * * * * op_none * * * *\n";
     }
 
     bool is_user_mode() const

@@ -6,6 +6,8 @@
 #include <memory>
 #include <vector>
 
+#include <glog/logging.h>
+
 using namespace std;
 
 namespace MPCE
@@ -45,7 +47,7 @@ class Memory
     {
         if (mapped_io_store_ && phys_addr > mapped_io_begin_)
         {
-            printf("rerouting store to io, phys_addr=%4x\n", phys_addr);
+            LOG(INFO) << "rerouting store to io, phys_addr=" << phys_addr;
             (*mapped_io_store_)(phys_addr - mapped_io_begin_ - 1, value);
             return;
         }
@@ -89,8 +91,6 @@ class WordAddressibleMemory : public Memory
     WordAddressibleMemory(const string name, const uint32_t capacity)
         : memory_(capacity, 0), name_(name)
     {
-        cout << "initializing memory " << name << " of size " << capacity
-             << endl;
     }
 
     /// @returns The number of words that this memory holds.
@@ -104,8 +104,9 @@ class WordAddressibleMemory : public Memory
     /// @param byte
     uint16_t do_load(uint32_t phys_addr, bool byte = false) const override
     {
-        printf("mem %s: loading %s from addr 0x%x\n", name_.c_str(),
-               byte ? "byte" : "word", phys_addr);
+        LOG(INFO) << "mem " << name_ << ": loading " << (byte ? "byte" : "word")
+                  << " from addr " << phys_addr;
+
         return memory_.at(phys_addr);
     }
 
@@ -114,8 +115,9 @@ class WordAddressibleMemory : public Memory
     void do_store(uint32_t phys_addr, uint16_t value,
                   bool byte = false) override
     {
-        printf("mem %s: storing %s 0x%x to addr 0x%x\n", name_.c_str(),
-               byte ? "byte" : "word", value, phys_addr);
+        LOG(INFO) << "mem " << name_ << ": storing " << (byte ? "byte" : "word")
+                  << " " << value << " to addr " << phys_addr;
+
         memory_.at(phys_addr) = value;
     }
 };

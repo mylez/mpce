@@ -44,7 +44,8 @@ class IOSerialInterface : public IOInterface
         const uint8_t value = mmio_in_buffer_.front();
         mmio_in_buffer_.pop();
 
-        printf("io_serial read %4x, '%c'\n", value, (char)value);
+        LOG(INFO) << "io_serial read " << value << ", '"
+                  << static_cast<char>(value) << "'";
 
         return value;
     }
@@ -54,7 +55,8 @@ class IOSerialInterface : public IOInterface
     {
         scoped_lock<mutex> lock(mutex_mmio_out_);
 
-        printf("io_serial write %4x, '%c'\n", byte, (char)byte);
+        LOG(INFO) << "io_serial write " << byte << ", '"
+                  << static_cast<char>(byte) << "'";
 
         mmio_out_buffer_.push(byte);
     }
@@ -135,7 +137,7 @@ class IOSerialInterface : public IOInterface
 
             if (byte_out)
             {
-                cout << static_cast<char>(*byte_out) << flush;
+                LOG(INFO) << static_cast<char>(*byte_out) << flush;
             }
 
             this_thread::sleep_for(sleep_duration_);

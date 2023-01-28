@@ -4,10 +4,19 @@
 #include <cstdio>
 #include <stack>
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 using namespace std;
 
 int main(int argc, char *argv[])
 {
+    google::InitGoogleLogging(argv[0]);
+
+    FLAGS_logtostderr = 1;
+    FLAGS_stderrthreshold = 0;
+    FLAGS_minloglevel = 0;
+
     MPCE::CPUState cpu_state;
 
     // Load immediate to r7:
@@ -22,7 +31,13 @@ int main(int argc, char *argv[])
     cpu_state.mmio().get_code(false).store(2, inst_io_store);
     cpu_state.mmio().get_code(false).store(3, 0xf000);
 
-    for (int i = 0; i < 2; i++)
+    // Store r1 to r0 + r7:
+    // b4   mem_b_kern[y + z] <- x, imm
+    uint16_t inst_ats = 0x6c00 | 1 | 2 << 3 | 3 << 6;
+    cpu_state.mmio().get_code(false).store(4, inst_ats);
+    cpu_state.mmio().get_code(false).store(5, 1);
+
+    for (int i = 0; i < 3; i++)
     {
         cpu_state.cycle();
     }
