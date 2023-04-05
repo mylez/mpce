@@ -4,7 +4,6 @@ cc_library(
         "cpu_state.cc",
         "interrupt.cc",
         "io_serial.cc",
-        "memory.cc",
         "mmio.cc",
         "mmu.cc",
     ],

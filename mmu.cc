@@ -1,19 +1,18 @@
 #include "mmu.h"
+#include "ram.h"
 
-namespace mpce
-{
 uint32_t mmu_t::resolve(const uint16_t virt_addr, uint8_t ptb,
                         const bool use_data_page_table, const bool is_write,
                         interrupt_t &interrupt)
 {
-    const word_addressible_memory_t &page_table =
+    const ram_t &page_table =
         use_data_page_table ? page_table_data_ : page_table_code_;
 
     const uint32_t offset = VIRT_PAGE_OFFSET(virt_addr);
     const uint32_t page_number = VIRT_PAGE_NUM(virt_addr);
     const uint32_t pte_lookup_index = PTE_LOOKUP_INDEX(ptb, page_number, false);
 
-    const uint16_t page_table_entry = page_table.load(pte_lookup_index);
+    const uint16_t page_table_entry = page_table.load_w(pte_lookup_index);
 
     if (IS_PTE_UNMAPPED(page_table_entry))
     {
@@ -28,7 +27,7 @@ uint32_t mmu_t::resolve(const uint16_t virt_addr, uint8_t ptb,
     return PHYS_ADDR(page_table_entry, offset);
 }
 
-word_addressible_memory_t &mmu_t::page_table(bool is_data)
+ram_t &mmu_t::page_table(bool is_data)
 {
     if (is_data)
     {
@@ -64,4 +63,3 @@ void mmu_t::reset_fault()
     read_only_fault_ = false;
     page_fault_ = false;
 }
-}; // namespace mpce

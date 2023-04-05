@@ -8,9 +8,6 @@
 
 using namespace std;
 
-namespace mpce
-{
-
 /// @brief
 enum register_index
 {
@@ -29,7 +26,7 @@ const unsigned int REGISTER_FILE_SIZE = 8;
 
 /// @brief
 /// @tparam dtype_t
-template <typename dtype_t> class register_t
+template <typename dtype_t> class reg_t
 {
   private:
     /// The data stored in this register.
@@ -45,7 +42,7 @@ template <typename dtype_t> class register_t
     /// @brief
     /// @param name
     /// @param mask
-    register_t(const string name, const dtype_t mask = {})
+    reg_t(const string name, const dtype_t mask = {})
         : data_{}, mask_(mask), name_{name}
     {
     }
@@ -54,7 +51,7 @@ template <typename dtype_t> class register_t
     /// @return
     dtype_t read() const
     {
-        LOG(INFO) << "reading " << static_cast<uint32_t>(data_)
+        LOG(INFO) << hex << "reading " << static_cast<uint32_t>(data_)
                   << " from register " << name_;
         return data_;
     }
@@ -77,11 +74,11 @@ template <typename dtype_t> class register_t
 };
 
 /// @brief
-class RegisterFile
+class reg_file_t
 {
   private:
     /// @brief
-    register_t<uint16_t> registers_[REGISTER_FILE_SIZE] = {
+    reg_t<uint16_t> registers_[REGISTER_FILE_SIZE] = {
         {"r0", 0xffff}, {"r1"}, {"r2"}, {"r3"},
         {"fp"},         {"sp"}, {"pc"}, {"imm"}};
 
@@ -89,10 +86,8 @@ class RegisterFile
     /// @brief
     /// @param index
     /// @return
-    register_t<uint16_t> &get(const uint8_t index)
+    reg_t<uint16_t> &get(const uint8_t index)
     {
         return registers_[index & 0x07];
     }
 };
-
-} // namespace mpce

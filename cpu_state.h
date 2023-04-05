@@ -23,9 +23,6 @@
 
 #define OPCODE_MAP_SIZE 0x80
 
-namespace mpce
-{
-
 using namespace std;
 
 struct cpu_state_t
@@ -39,26 +36,26 @@ struct cpu_state_t
                                       BIND_OP(&cpu_state_t::op_invalid)};
 
     /// Main architectural registers, including program counter.
-    RegisterFile register_file_;
+    reg_file_t register_file_;
 
-    /// memory_t management unit, maps virtual address to physical address in
+    /// memory management unit, maps virtual address to physical address in
     /// user mode.
     mmu_t mmu_;
 
-    /// memory_t-mapped IO.
+    /// memory-mapped IO.
     MMIO mmio_;
 
     /// Special registers.
-    register_t<uint8_t> status_{"status", 0xf0};
-    register_t<uint8_t> cause_{"cause"};
-    register_t<uint16_t> eret_{"eret"};
-    register_t<uint16_t> context_{"context"};
-    register_t<uint16_t> timer_{"timer"};
-    register_t<uint16_t> isr_{"isr"};
-    register_t<uint16_t> ptb_{"ptb"};
-    register_t<uint16_t> exc_addr_{"exc_addr"};
-    register_t<uint16_t> inst_{"inst"};
-    register_t<uint8_t> mode_{"mode", 0xfe};
+    reg_t<uint8_t> status_{"status", 0xf0};
+    reg_t<uint8_t> cause_{"cause"};
+    reg_t<uint16_t> eret_{"eret"};
+    reg_t<uint16_t> context_{"context"};
+    reg_t<uint16_t> timer_{"timer"};
+    reg_t<uint16_t> isr_{"isr"};
+    reg_t<uint16_t> ptb_{"ptb"};
+    reg_t<uint16_t> exc_addr_{"exc_addr"};
+    reg_t<uint16_t> inst_{"inst"};
+    reg_t<uint8_t> mode_{"mode", 0xfe};
 
     interrupt_t interrupt_;
 
@@ -70,26 +67,26 @@ struct cpu_state_t
     MMIO &mmio();
 
   private:
-    /// @brief
+    ///
     /// @param signals
     void context_switch_to_isr_if(const vector<interrupt_signal_t> signals);
 
     /// @param reg_x
-    void load_inst_word(register_t<uint16_t> &reg_x);
+    void load_inst_word(reg_t<uint16_t> &reg_x);
 
     /// Enable user mode by setting the mode register to 1.
     void op_set_mode();
 
-    /// @brief Atomic test and set.
+    /// Atomic test and set.
     void op_ats();
 
-    /// @brief
+    ///
     void op_invalid();
 
-    /// @brief
+    ///
     void op_none();
 
-    /// @brief
+    ///
     bool is_user_mode() const;
 
     /// @tparam is_data
@@ -109,19 +106,18 @@ struct cpu_state_t
 
         const uint16_t phys_addr = y + z;
 
-        mmu_.page_table(is_data).store(phys_addr, x);
+        mmu_.page_table(is_data).store_w(phys_addr, x);
     }
 
     /// @tparam protected_inst
     /// @tparam load_imm
     /// @tparam toggle_mode
-    /// @tparam register_type_t
+    /// @tparam reg_type_t
     /// @param special_reg
     /// @returns An Operation object that can be called like a function.
     template <bool protected_inst, bool load_imm, bool toggle_mode,
-              typename register_type_t>
-    Operation op_special_reg_read(
-        const register_t<register_type_t> &special_reg)
+              typename reg_type_t>
+    Operation op_special_reg_read(const reg_t<reg_type_t> &special_reg)
     {
         return [&]() {
             if (load_imm)
@@ -141,8 +137,7 @@ struct cpu_state_t
 
             const uint16_t inst_word = inst_.read();
 
-            register_t<uint16_t> &reg_x =
-                register_file_.get(REG_SEL_X(inst_word));
+            reg_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
 
             reg_x.write(special_reg.read());
 
@@ -154,10 +149,10 @@ struct cpu_state_t
     }
 
     /// @tparam load_imm
-    /// @tparam register_type_t
+    /// @tparam reg_type_t
     /// @param special_reg
-    template <bool load_imm, typename register_type_t>
-    Operation op_special_reg_write(register_t<register_type_t> &special_reg)
+    template <bool load_imm, typename reg_type_t>
+    Operation op_special_reg_write(reg_t<reg_type_t> &special_reg)
     {
         return [&]() {
             if (is_user_mode())
@@ -229,14 +224,14 @@ struct cpu_state_t
         const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
         const uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
 
-        register_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
+        reg_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
 
         uint16_t x = 0;
 
         bool update_status = false;
         bool update_status_unsigned = false;
-        bool carry_out = false;
-        bool overflow = false;
+        // bool carry_out = false;
+        // bool overflow = false;
         bool zero = false;
         bool negative = false;
 
@@ -308,7 +303,7 @@ struct cpu_state_t
 
         const uint16_t inst_word = inst_.read();
 
-        register_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
+        reg_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
 
         const uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
         const uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
@@ -326,17 +321,16 @@ struct cpu_state_t
             return;
         }
 
-        memory_t &memory =
+        ram_t &memory =
             is_data ? mmio_.get_data(inst_mode) : mmio_.get_code(inst_mode);
 
         if (is_store)
         {
-            memory.store(phys_addr, reg_x.read(), byte);
+            memory.store_b(phys_addr, reg_x.read());
         }
         else
         {
-            reg_x.write(memory.load(phys_addr, byte));
+            reg_x.write(memory.load_b(phys_addr));
         }
     }
 };
-} // namespace mpce

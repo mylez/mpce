@@ -1,8 +1,5 @@
 #include "cpu_state.h"
 
-namespace mpce
-{
-
 using namespace std;
 
 cpu_state_t::cpu_state_t()
@@ -56,7 +53,7 @@ cpu_state_t::cpu_state_t()
     // 3c   x <- y + z, imm
     MAP_OPCODE(0x3c, BIND_OP((&cpu_state_t::op_alu<4, false, true>)));
 
-    // memory_t and IO:
+    // memory and IO:
 
     // b2   mem_b_kern[y + z] <- x
     MAP_OPCODE(
@@ -415,7 +412,7 @@ void cpu_state_t::context_switch_to_isr_if(
 }
 
 /// @param reg_x
-void cpu_state_t::load_inst_word(register_t<uint16_t> &reg_x)
+void cpu_state_t::load_inst_word(reg_t<uint16_t> &reg_x)
 {
     const bool user_mode = is_user_mode();
     const uint16_t pc_addr = register_file_.get(PC).read();
@@ -432,7 +429,7 @@ void cpu_state_t::load_inst_word(register_t<uint16_t> &reg_x)
               << (user_mode ? "user" : "kern") << " code to " << reg_x.name()
               << endl;
 
-    const uint16_t word = mmio_.get_code(user_mode).load(a_phys_bus);
+    const uint16_t word = mmio_.get_code(user_mode).load_w(a_phys_bus);
 
     register_file_.get(PC).write(pc_addr + 1);
 
@@ -456,7 +453,7 @@ void cpu_state_t::op_set_mode()
     mode_.write(1);
 }
 
-/// @brief Atomic test and set.
+/// Atomic test and set.
 void cpu_state_t::op_ats()
 {
     LOG(INFO) << "atomic test and set";
@@ -464,11 +461,11 @@ void cpu_state_t::op_ats()
     const uint16_t inst_word = inst_.read();
 
     // User data memory.
-    memory_t &memory = mmio_.get_data(true);
+    ram_t &memory = mmio_.get_data(true);
 
     // Various registers and values.
-    register_t<uint16_t> &imm = register_file_.get(IMM);
-    register_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
+    reg_t<uint16_t> &imm = register_file_.get(IMM);
+    reg_t<uint16_t> &reg_x = register_file_.get(REG_SEL_X(inst_word));
     uint16_t y = register_file_.get(REG_SEL_Y(inst_word)).read();
     uint16_t z = register_file_.get(REG_SEL_Z(inst_word)).read();
 
@@ -484,15 +481,15 @@ void cpu_state_t::op_ats()
     }
 
     // rx <- mem[ry + rz]
-    reg_x.write(memory.load(phys_addr, true));
+    reg_x.write(memory.load_w(phys_addr));
 
     // mem[ry + rz] <- imm
-    memory.store(phys_addr, imm.read(), true);
+    memory.store_w(phys_addr, imm.read());
 }
 
 void cpu_state_t::op_invalid()
 {
-    cerr << "invalid operation." << endl;
+    LOG(ERROR) << "invalid operation." << endl;
     interrupt_.signal(ILL_INST);
 }
 
@@ -505,5 +502,3 @@ bool cpu_state_t::is_user_mode() const
 {
     return status_.read() & 0x8;
 }
-
-}; // namespace mpce

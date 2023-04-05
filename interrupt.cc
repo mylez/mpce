@@ -7,9 +7,6 @@
 #include <unordered_set>
 #include <vector>
 
-namespace mpce
-{
-
 using namespace std;
 
 uint8_t interrupt_t::cause()
@@ -35,7 +32,7 @@ void interrupt_t::signal(const interrupt_signal_t signal)
     pending_interrupts_.insert(signal);
 }
 
-/// @brief
+///
 /// @param signals
 /// @return
 bool interrupt_t::is_signalled(const vector<interrupt_signal_t> signals)
@@ -53,7 +50,7 @@ bool interrupt_t::is_signalled(const vector<interrupt_signal_t> signals)
     return false;
 }
 
-/// @brief
+///
 void interrupt_t::clear()
 {
     scoped_lock<mutex> lock(mutex_);
@@ -61,12 +58,12 @@ void interrupt_t::clear()
     pending_interrupts_.clear();
 }
 
-/// @brief
+///
 /// @param byte
 /// @param bit
 /// @param signal
 void interrupt_t::set_bit_if_signalled(uint8_t &byte, const uint8_t bit,
-                                     const interrupt_signal_t signal) const
+                                       const interrupt_signal_t signal) const
 {
     if (pending_interrupts_.count(signal))
     {
@@ -74,7 +71,7 @@ void interrupt_t::set_bit_if_signalled(uint8_t &byte, const uint8_t bit,
     }
 }
 
-/// @brief
+///
 /// @param byte
 void interrupt_t::set_signal_priority(uint8_t &byte) const
 {
@@ -94,5 +91,3 @@ void interrupt_t::set_signal_priority(uint8_t &byte) const
 
     byte |= priority << 4;
 }
-
-}; // namespace mpce

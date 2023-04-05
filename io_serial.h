@@ -11,9 +11,6 @@
 #include <queue>
 #include <thread>
 
-namespace mpce
-{
-
 using namespace std;
 
 class io_serial_interface_t : public io_interface_t
@@ -64,5 +61,3 @@ class io_serial_interface_t : public io_interface_t
     ///
     void loop_in();
 };
-
-} // namespace mpce

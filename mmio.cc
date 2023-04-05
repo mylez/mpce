@@ -1,7 +1,6 @@
 #include "mmio.h"
 
-namespace mpce
-{
+#include <glog/logging.h>
 
 ///
 MMIO::MMIO()
@@ -14,7 +13,7 @@ MMIO::MMIO()
     kern_data_.map_io(mapped_io_begin_, bind(&MMIO::io_load, this, _1),
                       bind(&MMIO::io_store, this, _1, _2));
 
-    /// register_t the mapped IO handlers for the serial console.
+    /// reg_t the mapped IO handlers for the serial console.
 
     mapped_io_load_.at(0x00) =
         bind(&io_serial_interface_t::mmio_read, &serial_interface_);
@@ -30,13 +29,13 @@ MMIO::MMIO()
 }
 
 /// @param is_user_mode
-memory_t &MMIO::get_code(bool is_user_mode)
+ram_t &MMIO::get_code(bool is_user_mode)
 {
     return is_user_mode ? user_code_ : kern_code_;
 }
 
 /// @param is_user_mode
-memory_t &MMIO::get_data(bool is_user_mode)
+ram_t &MMIO::get_data(bool is_user_mode)
 {
     return is_user_mode ? user_data_ : kern_data_;
 }
@@ -71,5 +70,3 @@ void MMIO::io_store(const uint32_t offset, const uint16_t value)
     LOG(INFO) << "mapped io_store: offset=" << offset << ", value=" << value;
     return mapped_io_store_.at(offset)(value);
 }
-
-}; // namespace mpce

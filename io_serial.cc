@@ -1,7 +1,6 @@
-#include "io_serial.h"
+#include <glog/logging.h>
 
-namespace mpce
-{
+#include "io_serial.h"
 
 using namespace std;
 
@@ -13,8 +12,8 @@ uint16_t io_serial_interface_t::mmio_read()
     const uint8_t value = mmio_in_buffer_.front();
     mmio_in_buffer_.pop();
 
-    LOG(INFO) << "io_serial read " << value << ", '" << static_cast<char>(value)
-              << "'";
+    VLOG(0) << "io_serial read " << value << ", '" << static_cast<char>(value)
+            << "'";
 
     return value;
 }
@@ -24,8 +23,8 @@ void io_serial_interface_t::mmio_write(const uint16_t byte)
 {
     scoped_lock<mutex> lock(mutex_mmio_out_);
 
-    LOG(INFO) << "io_serial write " << byte << ", '" << static_cast<char>(byte)
-              << "'";
+    VLOG(0) << "io_serial write " << byte << ", '" << static_cast<char>(byte)
+            << "'";
 
     mmio_out_buffer_.push(byte);
 }
@@ -133,5 +132,3 @@ void io_serial_interface_t::loop_in()
         this_thread::sleep_for(sleep_duration_);
     }
 }
-
-}; // namespace mpce

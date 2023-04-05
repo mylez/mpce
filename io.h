@@ -6,9 +6,6 @@
 
 #include <functional>
 
-namespace mpce
-{
-
 class io_interface_t
 {
   public:
@@ -18,5 +15,3 @@ class io_interface_t
 
     virtual void mmio_irq_notify(interrupt_t &) = 0;
 };
-
-} // namespace mpce
